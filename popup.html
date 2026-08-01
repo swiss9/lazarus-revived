@@ -9,29 +9,43 @@
     #donate { margin-top: 15px; text-align: center; font-size: 0.9em; }
     #donate p { margin: 4px 0; }
     #donate a { color: #4a90d9; text-decoration: none; }
+    .qr-img { width:120px; height:120px; }
   </style>
 </head>
 <body>
   <h3>Lazarus: Saved Forms</h3>
   <div id="entries"></div>
+
   <div id="donate">
-    <p>Support the revival:</p>
-    <p><strong>USDC on Solana</strong><br>
+    <p><strong>Support the revival</strong><br><small>Any amount you like ❤️</small></p>
+
+    <p style="margin-top:15px;"><strong>USDC via Solana</strong><br>
     <small>Fee &lt; $0.01 · Instant</small></p>
     <p>
       <a href="solana:HDnhGVB3JGBjnYy8acuhohTPUNgMHRKv3p4CsK7T1dCK">
-        <img src="donate-qr.png" 
-             alt="USDC donation QR"
-             style="width:150px; height:150px;">
+        <img src="donate-qr.png" alt="Solana USDC QR" class="qr-img">
       </a>
     </p>
     <p>
       <a href="solana:HDnhGVB3JGBjnYy8acuhohTPUNgMHRKv3p4CsK7T1dCK">
-        <code style="word-break:break-all; font-size:0.8em; color:#4a90d9;">HDnhGVB3JGBjnYy8acuhohTPUNgMHRKv3p4CsK7T1dCK</code>
+        <code style="word-break:break-all; font-size:0.7em;">HDnhGVB3…T1dCK</code>
       </a>
     </p>
-    <p><small>Tap the QR or address to open wallet,<br>or scan inside your Solana wallet app</small></p>
+
+    <p style="margin-top:15px;"><strong>USDC via Binance Pay</strong><br>
+    <small>No network fee · Instant</small></p>
+    <p>
+      <a href="https://app.binance.com/uni-qr/4SGEZptD" target="_blank">
+        <img src="binance-pay-qr.png" alt="Binance Pay QR" class="qr-img">
+      </a>
+    </p>
+    <p>
+      <a href="https://app.binance.com/uni-qr/4SGEZptD" target="_blank">
+        <small>Tap to pay with Binance</small>
+      </a>
+    </p>
   </div>
+
   <script src="popup.js"></script>
 </body>
 </html>
