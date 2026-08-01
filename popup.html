@@ -8,6 +8,7 @@
     .entry button { float: right; }
     #donate { margin-top: 15px; text-align: center; font-size: 0.9em; }
     #donate p { margin: 4px 0; }
+    #donate a { color: #4a90d9; text-decoration: none; }
   </style>
 </head>
 <body>
@@ -15,8 +16,21 @@
   <div id="entries"></div>
   <div id="donate">
     <p>Support the revival:</p>
-    <p><strong>BTC:</strong> 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa</p>
-    <p>or <a href="https://commerce.coinbase.com/checkout/your-id" target="_blank">Buy me a coffee in crypto</a></p>
+    <p><strong>USDC on Solana</strong><br>
+    <small>Fee &lt; $0.01 · Instant</small></p>
+    <p>
+      <a href="solana:HDnhGVB3JGBjnYy8acuhohTPUNgMHRKv3p4CsK7T1dCK">
+        <img src="donate-qr.png" 
+             alt="USDC donation QR"
+             style="width:150px; height:150px;">
+      </a>
+    </p>
+    <p>
+      <a href="solana:HDnhGVB3JGBjnYy8acuhohTPUNgMHRKv3p4CsK7T1dCK">
+        <code style="word-break:break-all; font-size:0.8em; color:#4a90d9;">HDnhGVB3JGBjnYy8acuhohTPUNgMHRKv3p4CsK7T1dCK</code>
+      </a>
+    </p>
+    <p><small>Tap the QR or address to open wallet,<br>or scan inside your Solana wallet app</small></p>
   </div>
   <script src="popup.js"></script>
 </body>
