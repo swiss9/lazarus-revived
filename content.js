@@ -13,8 +13,11 @@ const saveTimers = new Map();
 
 function saveField(field) {
   if (isSensitive(field)) return;
+  if (field.type === 'search' || field.getAttribute('role') === 'searchbox') return;
+
   const text = (field.value || field.innerText || '').trim();
-  if (!text) return;
+  if (!text || text.length < 4) return;
+
   browser.runtime.sendMessage({
     action: "saveText",
     data: {
@@ -130,12 +133,15 @@ browser.runtime.onMessage.addListener(msg => {
     <style>
       :host { position: fixed; display: none; z-index: 2147483646; }
       .list { background: #1A1A1D; color: #E0E0E0; border: 1px solid #D4AF37; border-radius: 8px;
-              min-width: 220px; max-width: 320px; max-height: 200px; overflow-y: auto;
+              min-width: 240px; max-width: 360px; max-height: 220px; overflow-y: auto;
               font-family: sans-serif; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
-      .item { padding: 8px 10px; cursor: pointer; border-bottom: 1px solid #333; }
+      .item { display: flex; align-items: center; padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #333; }
       .item:hover { background: #2A2A2D; color: #D4AF37; }
       .item:last-child { border-bottom: none; }
-      .time { font-size: 11px; color: #9E9E9E; margin-top: 2px; }
+      .text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px; }
+      .time { font-size: 11px; color: #9E9E9E; margin-right: 8px; white-space: nowrap; }
+      .delete-btn { cursor: pointer; opacity: 0.6; background: none; border: none; color: #E0E0E0; font-size: 14px; padding: 0; margin-left: 4px; }
+      .delete-btn:hover { opacity: 1; color: #D4AF37; }
     </style>
     <div class="list"></div>
   `;
@@ -156,9 +162,16 @@ browser.runtime.onMessage.addListener(msg => {
   function positionIcon(field) {
     const rect = field.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return hideIcon();
+    
+    const isTextArea = field.tagName.toLowerCase() === 'textarea' || field.isContentEditable;
     iconHost.style.display = 'block';
-    iconHost.style.left = (rect.right - 28) + 'px';
-    iconHost.style.top = (rect.bottom - 28) + 'px';
+    if (isTextArea) {
+      iconHost.style.left = (rect.right - 28) + 'px';
+      iconHost.style.top = (rect.bottom - 28) + 'px';
+    } else {
+      iconHost.style.left = (rect.right - 26) + 'px';
+      iconHost.style.top = (rect.top + (rect.height / 2) - 12) + 'px';
+    }
   }
 
   function hideIcon() {
@@ -172,6 +185,15 @@ browser.runtime.onMessage.addListener(msg => {
     dropdownVisible = false;
   }
 
+  async function deleteEntry(entryId) {
+    await browser.runtime.sendMessage({ action: "deleteEntry", entryId });
+    hideDropdown();
+    hideIcon();
+    if (activeField) {
+      showDropdown(activeField); // refresh
+    }
+  }
+
   async function showDropdown(field) {
     const identifier = getFieldIdentifier(field);
     const { entries } = await browser.runtime.sendMessage({
@@ -179,7 +201,10 @@ browser.runtime.onMessage.addListener(msg => {
       currentTabUrl: window.location.href,
       fieldName: identifier
     });
-    if (!entries || entries.length === 0) return;
+    if (!entries || entries.length === 0) {
+      hideDropdown();
+      return;
+    }
     listContainer.innerHTML = '';
     
     entries.forEach(entry => {
@@ -187,16 +212,25 @@ browser.runtime.onMessage.addListener(msg => {
       item.className = 'item';
       
       const textDiv = document.createElement('div');
+      textDiv.className = 'text';
       textDiv.textContent = entry.text.slice(0, 60) + (entry.text.length > 60 ? '…' : '');
       
       const timeDiv = document.createElement('div');
       timeDiv.className = 'time';
       timeDiv.textContent = timeAgo(entry.timestamp);
-
-      item.append(textDiv, timeDiv);
+      
+      const delBtn = document.createElement('button');
+      delBtn.className = 'delete-btn';
+      delBtn.textContent = '🗑️';
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteEntry(entry.id);
+      });
+      
+      item.append(textDiv, timeDiv, delBtn);
       
       item.addEventListener('click', (e) => {
-        e.stopPropagation();
+        if (e.target === delBtn) return;
         browser.runtime.sendMessage({ action: "restoreField", entryId: entry.id });
         hideDropdown();
         hideIcon();
@@ -243,6 +277,13 @@ browser.runtime.onMessage.addListener(msg => {
       if (dropdownVisible) hideDropdown();
     }
   }, { passive: true, capture: true });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && dropdownVisible) {
+      hideDropdown();
+      hideIcon();
+    }
+  });
 
   iconDiv.addEventListener('mousedown', (e) => {
     e.preventDefault();
