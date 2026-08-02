@@ -1,42 +1,71 @@
-const storage = browser.storage.local;
+const browser = globalThis.browser || globalThis.chrome;
 
-function saveText(data) {
-  const key = `${data.pageUrl}::${data.fieldName}`;
-  const entry = {
-    text: data.text,
-    timestamp: data.timestamp,
-    pageUrl: data.pageUrl,
-    fieldName: data.fieldName
-  };
-  return storage.set({ [key]: entry });
+const STORAGE_KEY = "lazarus_entries";
+const MAX_ENTRIES = 500;
+const MAX_AGE_DAYS = 30;
+
+async function cleanExpired(entries) {
+  const cutoff = Date.now() - MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+  return entries.filter(e => e.timestamp > cutoff);
 }
 
-browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === "saveText") {
-    saveText(message.data).then(() => sendResponse({ success: true }));
+async function saveEntry(newEntry) {
+  let { [STORAGE_KEY]: raw } = await browser.storage.local.get(STORAGE_KEY);
+  let entries = raw || [];
+  entries = entries.filter(e => e.pageUrl !== newEntry.pageUrl || e.fieldName !== newEntry.fieldName);
+  entries.push(newEntry);
+  entries.sort((a, b) => b.timestamp - a.timestamp);
+  entries = entries.slice(0, MAX_ENTRIES);
+  entries = await cleanExpired(entries);
+  await browser.storage.local.set({ [STORAGE_KEY]: entries });
+}
+
+function uuid() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.action === "saveText") {
+    const entry = {
+      id: uuid(),
+      pageUrl: msg.data.pageUrl,
+      fieldName: msg.data.fieldName,
+      text: msg.data.text,
+      timestamp: Date.now()
+    };
+    saveEntry(entry).then(() => sendResponse({ success: true }));
     return true;
   }
-  if (message.action === "getSavedData") {
-    storage.get(null).then(items => {
-      sendResponse({ items });
-    });
-    return true;
-  }
-  if (message.action === "restoreField") {
+
+  if (msg.action === "getSavedData") {
     (async () => {
-      const key = `${message.pageUrl}::${message.fieldName}`;
-      const result = await storage.get(key);
-      const entry = result[key];
-      if (!entry) return;
-      const tabs = await browser.tabs.query({ url: message.pageUrl });
+      const { [STORAGE_KEY]: entries } = await browser.storage.local.get(STORAGE_KEY);
+      const currentTabUrl = msg.currentTabUrl;
+      let list = entries || [];
+      if (currentTabUrl) {
+        list = list.filter(e => e.pageUrl === currentTabUrl);
+      }
+      sendResponse({ entries: list });
+    })();
+    return true;
+  }
+
+  if (msg.action === "restoreField") {
+    (async () => {
+      const { [STORAGE_KEY]: entries } = await browser.storage.local.get(STORAGE_KEY);
+      const match = (entries || []).find(e => e.id === msg.entryId);
+      if (!match) return;
+      const tabs = await browser.tabs.query({ url: match.pageUrl });
       if (tabs.length > 0) {
         await browser.tabs.sendMessage(tabs[0].id, {
           action: "restoreText",
-          data: { fieldName: message.fieldName, text: entry.text }
+          data: { fieldName: match.fieldName, text: match.text }
         });
       }
     })();
-    sendResponse({});
     return false;
   }
 });
