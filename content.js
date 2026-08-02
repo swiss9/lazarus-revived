@@ -214,46 +214,50 @@ browser.runtime.onMessage.addListener(msg => {
 
   async function showDropdown(field) {
     dropdownVisible = true;
-    const identifier = getFieldIdentifier(field);
-    const { entries } = await browser.runtime.sendMessage({
-      action: "getSavedData",
-      currentTabUrl: window.location.href,
-      fieldName: identifier
-    });
-    if (!entries || entries.length === 0) {
+    try {
+      const identifier = getFieldIdentifier(field);
+      const { entries } = await browser.runtime.sendMessage({
+        action: "getSavedData",
+        currentTabUrl: window.location.href,
+        fieldName: identifier
+      });
+      if (!entries || entries.length === 0) {
+        hideDropdown();
+        return;
+      }
+      const entry = entries[0];
+      const latestVersion = entry.versions[entry.versions.length - 1];
+      listContainer.innerHTML = '';
+      const item = document.createElement('div');
+      item.className = 'item';
+      const textDiv = document.createElement('div');
+      textDiv.className = 'text';
+      textDiv.textContent = latestVersion.text.slice(0, 60) + (latestVersion.text.length > 60 ? '…' : '');
+      const timeDiv = document.createElement('div');
+      timeDiv.className = 'time';
+      timeDiv.textContent = timeAgo(latestVersion.timestamp);
+      const delBtn = document.createElement('button');
+      delBtn.className = 'delete-btn';
+      delBtn.textContent = '🗑️';
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteEntry(entry.id);
+      });
+      item.append(textDiv, timeDiv, delBtn);
+      item.addEventListener('click', (e) => {
+        if (e.target === delBtn) return;
+        browser.runtime.sendMessage({ action: "restoreField", entryId: entry.id });
+        hideDropdown();
+        hideIcon();
+      });
+      listContainer.appendChild(item);
+      const rect = field.getBoundingClientRect();
+      dropdownHost.style.display = 'block';
+      dropdownHost.style.left = rect.left + 'px';
+      dropdownHost.style.top = (rect.bottom + 4) + 'px';
+    } catch (err) {
       hideDropdown();
-      return;
     }
-    const entry = entries[0];
-    const latestVersion = entry.versions[entry.versions.length - 1];
-    listContainer.innerHTML = '';
-    const item = document.createElement('div');
-    item.className = 'item';
-    const textDiv = document.createElement('div');
-    textDiv.className = 'text';
-    textDiv.textContent = latestVersion.text.slice(0, 60) + (latestVersion.text.length > 60 ? '…' : '');
-    const timeDiv = document.createElement('div');
-    timeDiv.className = 'time';
-    timeDiv.textContent = timeAgo(latestVersion.timestamp);
-    const delBtn = document.createElement('button');
-    delBtn.className = 'delete-btn';
-    delBtn.textContent = '🗑️';
-    delBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      deleteEntry(entry.id);
-    });
-    item.append(textDiv, timeDiv, delBtn);
-    item.addEventListener('click', (e) => {
-      if (e.target === delBtn) return;
-      browser.runtime.sendMessage({ action: "restoreField", entryId: entry.id });
-      hideDropdown();
-      hideIcon();
-    });
-    listContainer.appendChild(item);
-    const rect = field.getBoundingClientRect();
-    dropdownHost.style.display = 'block';
-    dropdownHost.style.left = rect.left + 'px';
-    dropdownHost.style.top = (rect.bottom + 4) + 'px';
   }
 
   function timeAgo(ms) {
