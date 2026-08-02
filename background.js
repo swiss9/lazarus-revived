@@ -42,7 +42,7 @@ async function saveEntry(newEntry) {
       }
     }
   } else {
-    newEntry.id = uuid();
+    newEntry.id = crypto.randomUUID ? crypto.randomUUID() : uuidFallback();
     newEntry.versions = [{ text: newEntry.text, timestamp: Date.now() }];
     entries.push(newEntry);
   }
@@ -53,13 +53,11 @@ async function saveEntry(newEntry) {
   await browser.storage.local.set({ [STORAGE_KEY]: entries });
 }
 
-function uuid() {
-  const arr = new Uint32Array(4);
-  crypto.getRandomValues(arr);
+function uuidFallback() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-    const r = arr[0] & 0x3 | 0x8;
-    arr[0] >>= 4;
-    return c === 'x' ? r.toString(16) : ((crypto.getRandomValues(new Uint8Array(1))[0] & 0xf) >>> 0).toString(16);
+    const r = crypto.getRandomValues(new Uint8Array(1))[0];
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
   });
 }
 
@@ -162,7 +160,7 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === "importData") {
     (async () => {
       const imported = msg.entries;
-      imported.forEach(e => { e.id = uuid(); });
+      imported.forEach(e => { e.id = crypto.randomUUID ? crypto.randomUUID() : uuidFallback(); });
       const { [STORAGE_KEY]: current } = await browser.storage.local.get(STORAGE_KEY);
       let existing = current || [];
       const merged = existing.concat(imported.filter(imp => !existing.some(e => e.pageUrl === imp.pageUrl && e.fieldName === imp.fieldName)));
