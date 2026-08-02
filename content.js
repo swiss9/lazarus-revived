@@ -1,320 +1,408 @@
 const browser = globalThis.browser || globalThis.chrome;
 
-let lazarus_entries_cache = [];
-let lazarus_lock_active = false;
-let lazarus_unlocked = false;
-let lazarus_salt = null;
-let lazarus_pin_hash = null;
-
-async function loadLockState() {
-  const { lazarus_lock, lazarus_salt_storage, lazarus_pin_hash_storage } = await browser.storage.local.get(["lazarus_lock", "lazarus_salt_storage", "lazarus_pin_hash_storage"]);
-  lazarus_lock_active = lazarus_lock === true;
-  lazarus_salt = lazarus_salt_storage || null;
-  lazarus_pin_hash = lazarus_pin_hash_storage || null;
+function isSensitive(field) {
+  const type = (field.type || '').toLowerCase();
+  if (type === 'password' || type === 'hidden') return true;
+  const attrs = (field.getAttribute('autocomplete') || '').toLowerCase();
+  if (attrs.includes('cc-') || attrs === 'one-time-code') return true;
+  const name = (field.name || field.id || '').toLowerCase();
+  const sensitiveNames = ['cvv', 'cardnumber', 'ssn', 'pin', 'ccnum', 'creditcard', 'cvc', 'expiry'];
+  return sensitiveNames.some(s => name.includes(s));
 }
 
-async function deriveKey(pin, salt) {
-  const encoder = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey("raw", encoder.encode(pin), "PBKDF2", false, ["deriveBits"]);
-  const derived = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt: encoder.encode(salt), iterations: 100000, hash: "SHA-256" },
-    keyMaterial,
-    256
+function safeClassName(field) {
+  if (field.className && typeof field.className === 'string') return field.className;
+  if (field.classList && field.classList.length) return Array.from(field.classList).join(' ');
+  return '';
+}
+
+function getFieldIdentifier(field) {
+  return field.name || field.id || safeClassName(field) || 'unnamed';
+}
+
+const saveTimers = new Map();
+
+async function saveField(field) {
+  if (isSensitive(field)) return;
+  if (field.type === 'search' || field.getAttribute('role') === 'searchbox') return;
+  if (!field.isConnected) return;
+  const text = (field.value || field.innerText || '').trim();
+  if (!text || text.length < 4) return;
+
+  browser.runtime.sendMessage({
+    action: "saveText",
+    data: {
+      pageUrl: window.location.href,
+      fieldName: getFieldIdentifier(field),
+      text,
+      timestamp: Date.now()
+    }
+  });
+}
+
+function debouncedSave(field) {
+  const key = field.dataset.lazarusKey;
+  if (saveTimers.has(key)) clearTimeout(saveTimers.get(key));
+  saveTimers.set(key, setTimeout(() => {
+    saveField(field);
+    saveTimers.delete(key);
+  }, 500));
+}
+
+function attach(root) {
+  const fields = root.querySelectorAll(
+    'input:not([type="password"]):not([type="hidden"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]), textarea, [contenteditable="true"]'
   );
-  return Array.from(new Uint8Array(derived)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-async function verifyPin(pin) {
-  if (!lazarus_salt || !lazarus_pin_hash) return false;
-  const hash = await deriveKey(pin, lazarus_salt);
-  return hash === lazarus_pin_hash;
-}
-
-async function setLockPin(pin) {
-  const salt = Math.random().toString(36).substr(2, 16);
-  const hash = await deriveKey(pin, salt);
-  await browser.storage.local.set({ lazarus_lock: true, lazarus_salt_storage: salt, lazarus_pin_hash_storage: hash });
-  lazarus_lock_active = true;
-  lazarus_salt = salt;
-  lazarus_pin_hash = hash;
-}
-
-async function disableLock() {
-  await browser.storage.local.set({ lazarus_lock: false, lazarus_salt_storage: null, lazarus_pin_hash_storage: null });
-  lazarus_lock_active = false;
-  lazarus_salt = null;
-  lazarus_pin_hash = null;
-}
-
-let showAll = false;
-let currentTabUrl = '';
-
-function timeAgo(ms) {
-  const sec = Math.floor((Date.now() - ms) / 1000);
-  if (sec < 60) return `${sec}s ago`;
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}m ago`;
-  const hrs = Math.floor(min / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
-}
-
-function escapeHtml(str) {
-  return (str || '').replace(/[&<>"']/g, match => {
-    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-    return map[match];
+  fields.forEach(field => {
+    if (field.dataset.lazarusTracked || isSensitive(field)) return;
+    field.dataset.lazarusTracked = 'true';
+    const key = Math.random().toString(36).substr(2, 9);
+    field.dataset.lazarusKey = key;
+    field.addEventListener('input', () => debouncedSave(field));
   });
 }
 
-async function getEntriesFromStorage() {
-  const resp = await browser.runtime.sendMessage({ action: "getSavedData", currentTabUrl: showAll ? null : currentTabUrl, fieldName: null });
-  return resp.entries;
+attach(document);
+
+const observer = new MutationObserver(mutations => {
+  mutations.forEach(mutation => {
+    mutation.addedNodes.forEach(node => {
+      if (node.nodeType !== 1) return;
+      if (node.matches && node.matches('input, textarea, [contenteditable="true"]')) {
+        if (!node.dataset.lazarusTracked && !isSensitive(node)) {
+          node.dataset.lazarusTracked = 'true';
+          const key = Math.random().toString(36).substr(2, 9);
+          node.dataset.lazarusKey = key;
+          node.addEventListener('input', () => debouncedSave(node));
+        }
+      }
+      attach(node);
+    });
+  });
+});
+observer.observe(document.body, { childList: true, subtree: true });
+
+function findFieldByName(name) {
+  if (!name || name === 'unnamed') return null;
+  try {
+    const escaped = CSS.escape(name);
+    const match = document.querySelector(`[name="${escaped}"], #${escaped}, .${escaped}`);
+    if (match) return match;
+  } catch (e) {}
+  const all = document.querySelectorAll('input, textarea, [contenteditable="true"]');
+  for (const el of all) {
+    const elName = el.name || el.id || safeClassName(el) || 'unnamed';
+    if (elName === name) return el;
+  }
+  return null;
 }
 
-async function refreshEntries() {
-  const container = document.getElementById('entries');
-  container.innerHTML = '';
-  if (lazarus_lock_active && !lazarus_unlocked) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-icon">🔒</div><div class="empty-title">Vault Locked</div><div class="empty-desc">Enter your PIN to access saved texts.</div></div>`;
-    return;
-  }
-  const searchValue = document.getElementById('search-input') ? document.getElementById('search-input').value.toLowerCase().trim() : '';
-  const entries = await getEntriesFromStorage();
-  if (!entries || entries.length === 0) {
-    container.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">📜</div>
-        <div class="empty-title">No drafts saved ${showAll ? 'yet' : 'for this site'}</div>
-        <div class="empty-desc">Type in any form field and Lazarus will automatically capture your text here.</div>
-      </div>
-    `;
-    return;
-  }
-  const filtered = entries.filter(e => {
-    if (searchValue) {
-      const latestText = e.versions[e.versions.length - 1].text.toLowerCase();
-      const field = e.fieldName.toLowerCase();
-      const url = e.pageUrl.toLowerCase();
-      return field.includes(searchValue) || latestText.includes(searchValue) || url.includes(searchValue);
+browser.runtime.onMessage.addListener(msg => {
+  if (msg.action === "restoreText") {
+    const { fieldName, text } = msg.data;
+    const field = findFieldByName(fieldName);
+    if (field) {
+      if (field.isContentEditable) field.innerText = text;
+      else field.value = text;
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+      field.dispatchEvent(new Event('change', { bubbles: true }));
+      field.classList.add('lazarus-glow');
+      setTimeout(() => field.classList.remove('lazarus-glow'), 600);
     }
-    return true;
-  });
-  if (filtered.length === 0) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">No matching drafts</div></div>`;
-    return;
   }
-  filtered.forEach(entry => {
-    const card = document.createElement('div');
-    card.className = 'entry-card';
+  if (msg.action === "restoreAllTexts") {
+    msg.data.forEach(item => {
+      const field = findFieldByName(item.fieldName);
+      if (field) {
+        if (field.isContentEditable) field.innerText = item.text;
+        else field.value = item.text;
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+        field.dispatchEvent(new Event('change', { bubbles: true }));
+        field.classList.add('lazarus-glow');
+        setTimeout(() => field.classList.remove('lazarus-glow'), 600);
+      }
+    });
+  }
+  if (msg.action === "toggleCommandPalette") {
+    toggleCommandPalette();
+  }
+});
+
+(function injectGlowStyle() {
+  const style = document.createElement('style');
+  style.textContent = `.lazarus-glow { box-shadow: 0 0 10px 3px #D4AF37 !important; transition: box-shadow 0.3s ease-out; }`;
+  document.head.appendChild(style);
+})();
+
+(function inFieldUI() {
+  const iconHost = document.createElement('div');
+  iconHost.id = 'lazarus-icon-host';
+  const shadow = iconHost.attachShadow({ mode: 'open' });
+  shadow.innerHTML = `
+    <style>
+      :host { position: fixed; display: none; z-index: 2147483647; pointer-events: auto; }
+      .icon { width: 24px; height: 24px; background: #1A1A1D; color: #D4AF37; border-radius: 50%;
+              display: flex; align-items: center; justify-content: center; font-size: 16px;
+              cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.4); opacity: 0.8; transition: opacity 0.2s; user-select: none; }
+      .icon:hover { opacity: 1; transform: scale(1.05); }
+    </style>
+    <div class="icon">☥</div>
+  `;
+  document.body.appendChild(iconHost);
+  const iconDiv = iconHost.shadowRoot.querySelector('.icon');
+
+  const dropdownHost = document.createElement('div');
+  dropdownHost.id = 'lazarus-dropdown-host';
+  const dropShadow = dropdownHost.attachShadow({ mode: 'open' });
+  dropShadow.innerHTML = `
+    <style>
+      :host { position: fixed; display: none; z-index: 2147483646; }
+      .list { background: #1A1A1D; color: #E0E0E0; border: 1px solid #D4AF37; border-radius: 8px;
+              min-width: 240px; max-width: 360px; max-height: 220px; overflow-y: auto;
+              font-family: sans-serif; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+      .item { display: flex; align-items: center; padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #333; }
+      .item:hover { background: #2A2A2D; color: #D4AF37; }
+      .item:last-child { border-bottom: none; }
+      .text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px; }
+      .time { font-size: 11px; color: #9E9E9E; margin-right: 8px; white-space: nowrap; }
+      .delete-btn { cursor: pointer; opacity: 0.6; background: none; border: none; color: #E0E0E0; font-size: 14px; padding: 0; margin-left: 4px; }
+      .delete-btn:hover { opacity: 1; color: #D4AF37; }
+    </style>
+    <div class="list"></div>
+  `;
+  document.body.appendChild(dropdownHost);
+  const listContainer = dropShadow.querySelector('.list');
+
+  let activeField = null;
+  let dropdownVisible = false;
+  let isHoveringIcon = false;
+
+  iconHost.addEventListener('mouseenter', () => isHoveringIcon = true);
+  iconHost.addEventListener('mouseleave', () => isHoveringIcon = false);
+
+  function positionIcon(field) {
+    const rect = field.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return hideIcon();
+    const isTextArea = field.tagName.toLowerCase() === 'textarea' || field.isContentEditable;
+    iconHost.style.display = 'block';
+    if (isTextArea) {
+      iconHost.style.left = (rect.right - 28) + 'px';
+      iconHost.style.top = (rect.bottom - 28) + 'px';
+    } else {
+      iconHost.style.left = (rect.right - 26) + 'px';
+      iconHost.style.top = (rect.top + (rect.height / 2) - 12) + 'px';
+    }
+  }
+
+  function hideIcon() {
+    if (!dropdownVisible && !isHoveringIcon) {
+      iconHost.style.display = 'none';
+    }
+  }
+
+  function hideDropdown() {
+    dropdownHost.style.display = 'none';
+    dropdownVisible = false;
+  }
+
+  async function deleteEntry(entryId) {
+    await browser.runtime.sendMessage({ action: "deleteEntry", entryId });
+    hideDropdown();
+    hideIcon();
+    if (activeField) showDropdown(activeField);
+  }
+
+  async function showDropdown(field) {
+    dropdownVisible = true;
+    const identifier = getFieldIdentifier(field);
+    const { entries } = await browser.runtime.sendMessage({
+      action: "getSavedData",
+      currentTabUrl: window.location.href,
+      fieldName: identifier
+    });
+    if (!entries || entries.length === 0) {
+      hideDropdown();
+      return;
+    }
+    const entry = entries[0];
     const latestVersion = entry.versions[entry.versions.length - 1];
-    let hostname = 'Unknown Site';
-    try {
-      hostname = new URL(entry.pageUrl).hostname.replace('www.', '') || entry.pageUrl;
-    } catch (e) {
-      hostname = entry.pageUrl;
-    }
-    card.innerHTML = `
-      <div class="entry-meta">
-        <span class="field-tag">${escapeHtml(entry.fieldName)}</span>
-        <span class="time-tag">${timeAgo(latestVersion.timestamp)} · ${escapeHtml(hostname)}</span>
-      </div>
-      <div class="snippet">${escapeHtml(latestVersion.text)}</div>
-      <div class="card-actions">
-        <button class="btn-icon history-btn" title="View version history">📜</button>
-        <button class="btn-icon delete-btn" title="Delete draft">🗑️</button>
-        <button class="btn-primary restore-btn">Resurrect</button>
-      </div>
-    `;
-
-    card.querySelector('.restore-btn').addEventListener('click', () => {
+    listContainer.innerHTML = '';
+    const item = document.createElement('div');
+    item.className = 'item';
+    const textDiv = document.createElement('div');
+    textDiv.className = 'text';
+    textDiv.textContent = latestVersion.text.slice(0, 60) + (latestVersion.text.length > 60 ? '…' : '');
+    const timeDiv = document.createElement('div');
+    timeDiv.className = 'time';
+    timeDiv.textContent = timeAgo(latestVersion.timestamp);
+    const delBtn = document.createElement('button');
+    delBtn.className = 'delete-btn';
+    delBtn.textContent = '🗑️';
+    delBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteEntry(entry.id);
+    });
+    item.append(textDiv, timeDiv, delBtn);
+    item.addEventListener('click', (e) => {
+      if (e.target === delBtn) return;
       browser.runtime.sendMessage({ action: "restoreField", entryId: entry.id });
+      hideDropdown();
+      hideIcon();
     });
+    listContainer.appendChild(item);
+    const rect = field.getBoundingClientRect();
+    dropdownHost.style.display = 'block';
+    dropdownHost.style.left = rect.left + 'px';
+    dropdownHost.style.top = (rect.bottom + 4) + 'px';
+  }
 
-    card.querySelector('.delete-btn').addEventListener('click', async (e) => {
-      e.stopPropagation();
-      await browser.runtime.sendMessage({ action: "deleteEntry", entryId: entry.id });
-      refreshEntries();
-    });
+  function timeAgo(ms) {
+    const sec = Math.floor((Date.now() - ms) / 1000);
+    if (sec < 60) return `${sec}s ago`;
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min}m ago`;
+    const hrs = Math.floor(min / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days}d ago`;
+  }
 
-    card.querySelector('.history-btn').addEventListener('click', async (e) => {
-      e.stopPropagation();
-      showVersionHistory(entry);
-    });
+  document.addEventListener('focusin', e => {
+    const target = e.target;
+    if (target.matches && target.matches('input, textarea, [contenteditable="true"]')) {
+      if (!target.dataset.lazarusTracked || isSensitive(target)) return;
+      activeField = target;
+      positionIcon(target);
+    }
+  }, true);
 
-    container.appendChild(card);
+  document.addEventListener('focusout', () => {
+    setTimeout(() => {
+      if (!isHoveringIcon && !dropdownVisible) hideIcon();
+    }, 150);
+  }, true);
+
+  window.addEventListener('scroll', () => {
+    if (activeField && iconHost.style.display === 'block') {
+      positionIcon(activeField);
+      if (dropdownVisible) hideDropdown();
+    }
+  }, { passive: true, capture: true });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && dropdownVisible) {
+      hideDropdown();
+      hideIcon();
+    }
   });
-}
 
-async function showVersionHistory(entry) {
-  const modal = document.createElement('div');
-  modal.className = 'version-modal';
-  modal.innerHTML = `
-    <div class="version-modal-content">
-      <div class="version-header">
-        <span class="field-tag">${escapeHtml(entry.fieldName)}</span>
-        <button class="btn-icon close-modal">✖</button>
-      </div>
-      <div class="version-list"></div>
+  iconDiv.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (activeField) showDropdown(activeField);
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!dropdownHost.contains(e.target) && e.target !== iconHost) {
+      hideDropdown();
+      hideIcon();
+    }
+  }, true);
+})();
+
+(function commandPalette() {
+  const host = document.createElement('div');
+  host.id = 'lazarus-cp-host';
+  host.style.display = 'none';
+  host.setAttribute('role', 'dialog');
+  host.setAttribute('aria-modal', 'true');
+  host.setAttribute('aria-label', 'Lazarus command palette');
+  const shadow = host.attachShadow({ mode: 'open' });
+  shadow.innerHTML = `
+    <style>
+      :host { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 2147483640;
+              background: rgba(0,0,0,0.5); display: flex; align-items: flex-start; justify-content: center; padding-top: 15vh; }
+      .panel { background: #1A1A1D; border: 1px solid #D4AF37; border-radius: 12px; width: 90%; max-width: 500px;
+               overflow: hidden; box-shadow: 0 8px 30px rgba(0,0,0,0.6); }
+      .search-box { width: 100%; padding: 12px 16px; background: transparent; border: none; outline: none;
+                    color: #E0E0E0; font-size: 16px; border-bottom: 1px solid #333; }
+      .results { max-height: 300px; overflow-y: auto; }
+      .cp-item { padding: 10px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+                 border-bottom: 1px solid #27272a; color: #E0E0E0; font-size: 13px; }
+      .cp-item:hover { background: #2A2A2D; color: #D4AF37; }
+      .cp-field { font-weight: bold; color: #D4AF37; }
+      .cp-snippet { color: #9E9E9E; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    </style>
+    <div class="panel">
+      <input class="search-box" placeholder="Search drafts..." aria-label="Search Lazarus drafts">
+      <div class="results"></div>
     </div>
   `;
-  document.body.appendChild(modal);
-  const list = modal.querySelector('.version-list');
-  entry.versions.slice().reverse().forEach(version => {
-    const row = document.createElement('div');
-    row.className = 'version-row';
-    row.innerHTML = `<span class="time-tag">${timeAgo(version.timestamp)}</span><span class="version-snippet">${escapeHtml(version.text.slice(0, 60))}</span><button class="btn-primary small">Restore</button>`;
-    row.querySelector('button').addEventListener('click', () => {
-      browser.runtime.sendMessage({ action: "restoreVersion", entryId: entry.id, timestamp: version.timestamp });
-      modal.remove();
+  document.body.appendChild(host);
+
+  const input = shadow.querySelector('.search-box');
+  const results = shadow.querySelector('.results');
+  let cpVisible = false;
+  let allEntries = [];
+
+  function hide() {
+    host.style.display = 'none';
+    cpVisible = false;
+    input.value = '';
+    results.innerHTML = '';
+  }
+
+  function show() {
+    host.style.display = 'flex';
+    cpVisible = true;
+    input.focus();
+    loadEntries();
+  }
+
+  async function loadEntries() {
+    const resp = await browser.runtime.sendMessage({ action: "getSavedData", currentTabUrl: window.location.href });
+    allEntries = resp.entries || [];
+    filterResults();
+  }
+
+  function filterResults() {
+    const query = input.value.toLowerCase().trim();
+    results.innerHTML = '';
+    const filtered = allEntries.filter(e => {
+      if (!query) return true;
+      const latest = e.versions[e.versions.length - 1].text.toLowerCase();
+      return e.fieldName.toLowerCase().includes(query) || latest.includes(query) || e.pageUrl.toLowerCase().includes(query);
     });
-    list.appendChild(row);
-  });
-  modal.querySelector('.close-modal').addEventListener('click', () => modal.remove());
-  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
-}
-
-async function resurrectFullForm() {
-  if (lazarus_lock_active && !lazarus_unlocked) return;
-  await browser.runtime.sendMessage({ action: "restoreAllFields", currentTabUrl: currentTabUrl });
-}
-
-async function toggleBlacklist() {
-  const hostname = new URL(currentTabUrl).hostname;
-  let { lazarus_blacklist } = await browser.storage.local.get("lazarus_blacklist");
-  let list = lazarus_blacklist || [];
-  const index = list.indexOf(hostname);
-  if (index > -1) {
-    list.splice(index, 1);
-  } else {
-    list.push(hostname);
+    filtered.forEach(entry => {
+      const latest = entry.versions[entry.versions.length - 1];
+      const item = document.createElement('div');
+      item.className = 'cp-item';
+      item.innerHTML = `<span class="cp-field">${escapeHtml(entry.fieldName)}</span><span class="cp-snippet">${escapeHtml(latest.text.slice(0, 50))}</span>`;
+      item.addEventListener('click', () => {
+        browser.runtime.sendMessage({ action: "restoreField", entryId: entry.id });
+        hide();
+      });
+      results.appendChild(item);
+    });
   }
-  await browser.storage.local.set({ lazarus_blacklist: list });
-  updateBlacklistButton();
-}
 
-async function updateBlacklistButton() {
-  const btn = document.getElementById('blacklist-btn');
-  const hostname = new URL(currentTabUrl).hostname;
-  let { lazarus_blacklist } = await browser.storage.local.get("lazarus_blacklist");
-  const list = lazarus_blacklist || [];
-  btn.textContent = list.includes(hostname) ? '🔇 Unsilence Site' : '🔕 Silence Site';
-}
+  input.addEventListener('input', filterResults);
+  host.addEventListener('click', (e) => {
+    if (e.target === host) hide();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && cpVisible) hide();
+  });
 
-async function exportVault() {
-  const { entries } = await browser.runtime.sendMessage({ action: "getExportData" });
-  const json = JSON.stringify(entries, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'lazarus_vault_export.json';
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-async function importVault() {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.json';
-  input.onchange = async () => {
-    const file = input.files[0];
-    if (!file) return;
-    const text = await file.text();
-    try {
-      const imported = JSON.parse(text);
-      if (!Array.isArray(imported)) throw new Error('Invalid format');
-      await browser.runtime.sendMessage({ action: "importData", entries: imported });
-      refreshEntries();
-    } catch (e) {
-      alert('Invalid vault file.');
-    }
+  window.toggleCommandPalette = function() {
+    if (cpVisible) hide();
+    else show();
   };
-  input.click();
-}
 
-async function init() {
-  await loadLockState();
-  if (lazarus_lock_active) {
-    document.getElementById('lock-screen').style.display = 'flex';
-  } else {
-    document.getElementById('lock-screen').style.display = 'none';
-    document.getElementById('main-ui').style.display = 'flex';
+  function escapeHtml(str) {
+    return (str || '').replace(/[&<>"']/g, match => {
+      const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+      return map[match];
+    });
   }
-
-  try {
-    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-    currentTabUrl = tab ? tab.url : '';
-  } catch (e) {
-    currentTabUrl = '';
-  }
-
-  document.getElementById('tab-site').addEventListener('click', () => {
-    showAll = false;
-    document.getElementById('tab-site').classList.add('active');
-    document.getElementById('tab-all').classList.remove('active');
-    refreshEntries();
-  });
-
-  document.getElementById('tab-all').addEventListener('click', () => {
-    showAll = true;
-    document.getElementById('tab-all').classList.add('active');
-    document.getElementById('tab-site').classList.remove('active');
-    refreshEntries();
-  });
-
-  document.getElementById('search-input').addEventListener('input', refreshEntries);
-
-  document.getElementById('resurrect-all-btn').addEventListener('click', resurrectFullForm);
-
-  document.getElementById('blacklist-btn').addEventListener('click', toggleBlacklist);
-  updateBlacklistButton();
-
-  document.getElementById('export-btn').addEventListener('click', exportVault);
-  document.getElementById('import-btn').addEventListener('click', importVault);
-
-  document.getElementById('toggle-donate').addEventListener('click', (e) => {
-    e.preventDefault();
-    const modal = document.getElementById('donate-modal');
-    modal.style.display = modal.style.display === 'none' || !modal.style.display ? 'flex' : 'none';
-  });
-
-  document.getElementById('lock-btn').addEventListener('click', async () => {
-    if (lazarus_lock_active) {
-      await disableLock();
-      document.getElementById('lock-btn').textContent = '🔓 Unlocked';
-      document.getElementById('lock-screen').style.display = 'none';
-      document.getElementById('main-ui').style.display = 'flex';
-      refreshEntries();
-    } else {
-      const pin = prompt('Enter new PIN:');
-      if (!pin) return;
-      await setLockPin(pin);
-      document.getElementById('lock-btn').textContent = '🔒 Locked';
-      document.getElementById('lock-screen').style.display = 'none';
-      document.getElementById('main-ui').style.display = 'flex';
-      refreshEntries();
-    }
-  });
-
-  document.getElementById('unlock-btn').addEventListener('click', async () => {
-    const pin = document.getElementById('pin-input').value;
-    if (await verifyPin(pin)) {
-      lazarus_unlocked = true;
-      document.getElementById('lock-screen').style.display = 'none';
-      document.getElementById('main-ui').style.display = 'flex';
-      refreshEntries();
-    } else {
-      document.getElementById('pin-error').style.display = 'block';
-    }
-  });
-
-  if (!lazarus_lock_active) {
-    document.getElementById('lock-btn').textContent = '🔓 Unlocked';
-  } else {
-    document.getElementById('lock-btn').textContent = '🔒 Locked';
-  }
-
-  await refreshEntries();
-}
-
-init();
+})();
