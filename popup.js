@@ -336,6 +336,15 @@ function debouncedRefresh() {
 }
 
 async function init() {
+  browser.runtime.onMessage.addListener((msg) => {
+    if (msg.action === 'blacklist-changed') {
+      loadBlacklist().then(() => {
+        updateStatusBadge();
+        updateBlacklistButton();
+      });
+    }
+  });
+
   await loadBlacklist();
   await loadLockState();
 
@@ -406,15 +415,6 @@ async function init() {
   });
 
   document.getElementById('lock-btn').textContent = lazarus_lock_active ? '🔒 Locked' : '🔓 Unlocked';
-
-  browser.runtime.onMessage.addListener((msg) => {
-    if (msg.action === 'blacklist-changed') {
-      loadBlacklist().then(() => {
-        updateStatusBadge();
-        updateBlacklistButton();
-      });
-    }
-  });
 
   await refreshEntries();
 }
