@@ -46,13 +46,23 @@ async function refreshEntries() {
     const snippet = document.createElement('div');
     snippet.textContent = entry.text.slice(0, 50) + (entry.text.length > 50 ? '...' : '');
     
-    const btn = document.createElement('button');
-    btn.textContent = '☥ Resurrect';
-    btn.addEventListener('click', () => {
+    const btnResurrect = document.createElement('button');
+    btnResurrect.className = 'resurrect';
+    btnResurrect.textContent = '☥ Resurrect';
+    btnResurrect.addEventListener('click', () => {
       browser.runtime.sendMessage({ action: "restoreField", entryId: entry.id });
     });
+
+    const btnDelete = document.createElement('button');
+    btnDelete.className = 'delete-btn';
+    btnDelete.textContent = '🗑️';
+    btnDelete.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await browser.runtime.sendMessage({ action: "deleteEntry", entryId: entry.id });
+      refreshEntries();
+    });
     
-    div.append(strong, meta, snippet, btn);
+    div.append(strong, meta, snippet, btnResurrect, btnDelete);
     container.appendChild(div);
   });
 }
