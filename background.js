@@ -43,10 +43,13 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === "getSavedData") {
     (async () => {
       const { [STORAGE_KEY]: entries } = await browser.storage.local.get(STORAGE_KEY);
-      const currentTabUrl = msg.currentTabUrl;
+      const { currentTabUrl, fieldName } = msg;
       let list = entries || [];
       if (currentTabUrl) {
         list = list.filter(e => e.pageUrl === currentTabUrl);
+      }
+      if (fieldName) {
+        list = list.filter(e => e.fieldName === fieldName);
       }
       sendResponse({ entries: list });
     })();
@@ -58,9 +61,11 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const { [STORAGE_KEY]: entries } = await browser.storage.local.get(STORAGE_KEY);
       const match = (entries || []).find(e => e.id === msg.entryId);
       if (!match) return;
-      const tabs = await browser.tabs.query({ url: match.pageUrl });
-      if (tabs.length > 0) {
-        await browser.tabs.sendMessage(tabs[0].id, {
+
+      // Send to the active tab, avoiding strict URL matching issues
+      const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
+      if (activeTab) {
+        await browser.tabs.sendMessage(activeTab.id, {
           action: "restoreText",
           data: { fieldName: match.fieldName, text: match.text }
         });
