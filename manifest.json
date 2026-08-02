@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Lazarus: Form Recovery",
-  "version": "4.1.1",
+  "version": "4.1.2",
   "description": "Recover lost form data. Automatically saves everything you type.",
   "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": ["<all_urls>"],
