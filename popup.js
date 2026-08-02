@@ -272,6 +272,61 @@ async function importVault() {
   input.click();
 }
 
+function showPinModal(mode) {
+  const existing = document.querySelector('.pin-modal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.className = 'pin-modal';
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-modal', 'true');
+  const title = mode === 'set' ? 'Set PIN' : 'Enter PIN to disable lock';
+  const btnText = mode === 'set' ? 'Set' : 'Verify';
+  modal.innerHTML = `
+    <div class="pin-modal-content">
+      <div class="pin-header">
+        <span class="field-tag">${title}</span>
+        <button class="btn-icon close-modal" aria-label="Close">✖</button>
+      </div>
+      <input type="password" class="search-input pin-modal-input" placeholder="Enter PIN" aria-label="PIN">
+      <div class="error-text pin-error">Invalid PIN</div>
+      <button class="btn-primary pin-submit" style="margin-top:8px;">${btnText}</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  modal.querySelector('.close-modal').addEventListener('click', () => modal.remove());
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+  const inputField = modal.querySelector('.pin-modal-input');
+  const errorDiv = modal.querySelector('.pin-error');
+  const submitBtn = modal.querySelector('.pin-submit');
+
+  submitBtn.addEventListener('click', async () => {
+    const pin = inputField.value.trim();
+    if (!pin) return;
+
+    if (mode === 'set') {
+      await setLockPin(pin);
+      document.getElementById('lock-btn').textContent = '🔒 Locked';
+      lazarus_unlocked = true;  // after setting, treat as unlocked for this session
+      modal.remove();
+      refreshEntries();
+    } else if (mode === 'verify') {
+      if (await verifyPin(pin)) {
+        await disableLock();
+        document.getElementById('lock-btn').textContent = '🔓 Unlocked';
+        lazarus_unlocked = false;
+        modal.remove();
+        document.getElementById('lock-screen').style.display = 'none';
+        document.getElementById('main-ui').style.display = 'flex';
+        refreshEntries();
+      } else {
+        errorDiv.style.display = 'block';
+      }
+    }
+  });
+}
+
 let searchDebounceTimer;
 function debouncedRefresh() {
   clearTimeout(searchDebounceTimer);
@@ -329,38 +384,11 @@ async function init() {
     modal.style.display = modal.style.display === 'none' || !modal.style.display ? 'flex' : 'none';
   });
 
-  document.getElementById('lock-btn').addEventListener('click', async () => {
+  document.getElementById('lock-btn').addEventListener('click', () => {
     if (lazarus_lock_active) {
-      await disableLock();
-      document.getElementById('lock-btn').textContent = '🔓 Unlocked';
-      lazarus_unlocked = false;
-      document.getElementById('lock-screen').style.display = 'none';
-      document.getElementById('main-ui').style.display = 'flex';
-      refreshEntries();
+      showPinModal('verify');
     } else {
-      const currentPin = lazarus_pin_hash;
-      if (currentPin) {
-        const pin = prompt('Enter current PIN to disable:');
-        if (!pin || !(await verifyPin(pin))) {
-          alert('Invalid PIN');
-          return;
-        }
-        await disableLock();
-        document.getElementById('lock-btn').textContent = '🔓 Unlocked';
-        lazarus_unlocked = false;
-        document.getElementById('lock-screen').style.display = 'none';
-        document.getElementById('main-ui').style.display = 'flex';
-        refreshEntries();
-      } else {
-        const newPin = await prompt('Set a PIN:');
-        if (!newPin) return;
-        await setLockPin(newPin);
-        document.getElementById('lock-btn').textContent = '🔒 Locked';
-        lazarus_unlocked = true;
-        document.getElementById('lock-screen').style.display = 'none';
-        document.getElementById('main-ui').style.display = 'flex';
-        refreshEntries();
-      }
+      showPinModal('set');
     }
   });
 
