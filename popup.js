@@ -297,7 +297,7 @@ function showPinModal(mode) {
 
   inputField.focus();
 
-  submitBtn.addEventListener('click', async () => {
+  function submit() {
     const pin = inputField.value.trim();
     if (!pin) return;
 
@@ -308,25 +308,43 @@ function showPinModal(mode) {
         return;
       }
       errorDiv.style.display = 'none';
-      await setLockPin(pin);
-      document.getElementById('lock-btn').textContent = '🔒 Locked';
-      lazarus_unlocked = true;
-      modal.remove();
-      refreshEntries();
-    } else if (mode === 'verify') {
-      if (await verifyPin(pin)) {
-        await disableLock();
-        document.getElementById('lock-btn').textContent = '🔓 Unlocked';
-        lazarus_unlocked = false;
+      setLockPin(pin).then(() => {
+        document.getElementById('lock-btn').textContent = '🔒 Locked';
+        lazarus_unlocked = true;
         modal.remove();
-        document.getElementById('lock-screen').style.display = 'none';
-        document.getElementById('main-ui').style.display = 'flex';
         refreshEntries();
-      } else {
-        errorDiv.style.display = 'block';
-      }
+      });
+    } else if (mode === 'verify') {
+      verifyPin(pin).then(valid => {
+        if (valid) {
+          disableLock().then(() => {
+            document.getElementById('lock-btn').textContent = '🔓 Unlocked';
+            lazarus_unlocked = false;
+            modal.remove();
+            document.getElementById('lock-screen').style.display = 'none';
+            document.getElementById('main-ui').style.display = 'flex';
+            refreshEntries();
+          });
+        } else {
+          errorDiv.style.display = 'block';
+        }
+      });
     }
+  }
+
+  submitBtn.addEventListener('click', submit);
+
+  inputField.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') submit();
   });
+  if (confirmField) {
+    confirmField.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') submit();
+    });
+    confirmField.addEventListener('input', () => {
+      errorDiv.style.display = 'none';
+    });
+  }
 }
 
 let searchDebounceTimer;
