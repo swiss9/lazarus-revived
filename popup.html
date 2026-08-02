@@ -83,8 +83,12 @@
     .status-dot {
       width: 6px;
       height: 6px;
-      background: #22c55e;
       border-radius: 50%;
+      background: #22c55e;
+    }
+
+    .status-dot.paused {
+      background: #f59e0b;
     }
 
     .tab-bar {
@@ -311,6 +315,9 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      role: dialog;
+      aria-modal: true;
+      aria-label: "Version history";
     }
 
     .version-modal-content {
@@ -382,7 +389,7 @@
   <div id="lock-screen">
     <div class="empty-icon">🔒</div>
     <div class="empty-title">Vault Locked</div>
-    <input type="password" id="pin-input" placeholder="Enter PIN" class="search-input" style="width:80%;">
+    <input type="password" id="pin-input" placeholder="Enter PIN" class="search-input" style="width:80%;" aria-label="PIN input">
     <button id="unlock-btn" class="btn-primary">Unlock</button>
     <div id="pin-error" style="display:none; color:var(--danger); font-size:11px;">Incorrect PIN</div>
   </div>
@@ -393,12 +400,12 @@
         <div class="brand-icon">☥</div>
         <span class="brand-title">Lazarus</span>
       </div>
-      <div class="status-badge">
-        <span class="status-dot"></span> Vault Active
+      <div class="status-badge" id="status-badge">
+        <span class="status-dot" id="status-dot"></span> <span id="status-text">Vault Active</span>
       </div>
     </div>
 
-    <input type="text" id="search-input" class="search-input" placeholder="Search vault...">
+    <input type="text" id="search-input" class="search-input" placeholder="Search vault..." aria-label="Search saved entries">
 
     <div class="tab-bar">
       <button class="tab-btn active" id="tab-site">Current Site</button>
@@ -421,14 +428,14 @@
       <p style="color: var(--text-secondary); font-weight: 600; margin-bottom: 8px;">Support Lazarus</p>
       <div style="margin-bottom: 10px;">
         <p style="color: var(--accent); margin-bottom: 4px;">USDC on Solana</p>
-        <img src="donate-qr.png" alt="Solana QR">
+        <img src="donate-qr.png" alt="Solana donation QR code" style="width:100px; height:100px;">
         <p style="font-size:10px; margin-top:4px; word-break: break-all;">
           <a href="solana:HDnhGVB3JGBjnYy8acuhohTPUNgMHRKv3p4CsK7T1dCK" style="color:var(--text-secondary);">HDnhGVB3JGBjnYy8acuhohTPUNgMHRKv3p4CsK7T1dCK</a>
         </p>
       </div>
       <div>
         <p style="color: var(--accent); margin-bottom: 4px;">Binance Pay</p>
-        <img src="binance-pay-qr.png" alt="Binance QR">
+        <img src="binance-pay-qr.png" alt="Binance Pay donation QR code" style="width:100px; height:100px;">
         <p style="font-size:10px; margin-top:4px;">
           <a href="https://app.binance.com/uni-qr/4SGEZptD" target="_blank" style="color:var(--text-secondary);">Tap to pay with Binance</a>
         </p>
@@ -445,4 +452,4 @@
 
   <script src="popup.js"></script>
 </body>
-</html>
+  </html>
