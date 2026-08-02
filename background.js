@@ -3,18 +3,32 @@ const browser = globalThis.browser || globalThis.chrome;
 const STORAGE_KEY = "lazarus_entries";
 const MAX_ENTRIES = 500;
 const MAX_AGE_DAYS = 30;
+const MAX_VERSIONS = 10;
 
 async function cleanExpired(entries) {
   const cutoff = Date.now() - MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
-  return entries.filter(e => e.timestamp > cutoff);
+  return entries.filter(e => e.versions.length && e.versions[e.versions.length - 1].timestamp > cutoff);
 }
 
 async function saveEntry(newEntry) {
   let { [STORAGE_KEY]: raw } = await browser.storage.local.get(STORAGE_KEY);
   let entries = raw || [];
-  entries = entries.filter(e => e.pageUrl !== newEntry.pageUrl || e.fieldName !== newEntry.fieldName);
-  entries.push(newEntry);
-  entries.sort((a, b) => b.timestamp - a.timestamp);
+  const existingIndex = entries.findIndex(e => e.pageUrl === newEntry.pageUrl && e.fieldName === newEntry.fieldName);
+  if (existingIndex !== -1) {
+    const existing = entries[existingIndex];
+    const lastVersion = existing.versions[existing.versions.length - 1];
+    if (newEntry.text !== lastVersion.text) {
+      existing.versions.push({ text: newEntry.text, timestamp: Date.now() });
+      if (existing.versions.length > MAX_VERSIONS) {
+        existing.versions = existing.versions.slice(-MAX_VERSIONS);
+      }
+    }
+  } else {
+    newEntry.id = uuid();
+    newEntry.versions = [{ text: newEntry.text, timestamp: Date.now() }];
+    entries.push(newEntry);
+  }
+  entries.sort((a, b) => b.versions[b.versions.length - 1].timestamp - a.versions[a.versions.length - 1].timestamp);
   entries = entries.slice(0, MAX_ENTRIES);
   entries = await cleanExpired(entries);
   await browser.storage.local.set({ [STORAGE_KEY]: entries });
@@ -29,28 +43,20 @@ function uuid() {
 
 browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === "saveText") {
-    const entry = {
-      id: uuid(),
+    saveEntry({
       pageUrl: msg.data.pageUrl,
       fieldName: msg.data.fieldName,
-      text: msg.data.text,
-      timestamp: Date.now()
-    };
-    saveEntry(entry).then(() => sendResponse({ success: true }));
+      text: msg.data.text
+    }).then(() => sendResponse({ success: true }));
     return true;
   }
 
   if (msg.action === "getSavedData") {
     (async () => {
       const { [STORAGE_KEY]: entries } = await browser.storage.local.get(STORAGE_KEY);
-      const { currentTabUrl, fieldName } = msg;
       let list = entries || [];
-      if (currentTabUrl) {
-        list = list.filter(e => e.pageUrl === currentTabUrl);
-      }
-      if (fieldName) {
-        list = list.filter(e => e.fieldName === fieldName);
-      }
+      if (msg.currentTabUrl) list = list.filter(e => e.pageUrl === msg.currentTabUrl);
+      if (msg.fieldName) list = list.filter(e => e.fieldName === msg.fieldName);
       sendResponse({ entries: list });
     })();
     return true;
@@ -72,25 +78,95 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const { [STORAGE_KEY]: entries } = await browser.storage.local.get(STORAGE_KEY);
       const match = (entries || []).find(e => e.id === msg.entryId);
       if (!match) return;
-
+      const version = match.versions[match.versions.length - 1];
       const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
       if (activeTab) {
         await browser.tabs.sendMessage(activeTab.id, {
           action: "restoreText",
-          data: { fieldName: match.fieldName, text: match.text }
+          data: { fieldName: match.fieldName, text: version.text }
         });
       }
     })();
     return false;
   }
+
+  if (msg.action === "restoreAllFields") {
+    (async () => {
+      const { [STORAGE_KEY]: entries } = await browser.storage.local.get(STORAGE_KEY);
+      const pageUrl = msg.currentTabUrl;
+      const relevant = (entries || []).filter(e => e.pageUrl === pageUrl);
+      const payload = relevant.map(e => ({
+        fieldName: e.fieldName,
+        text: e.versions[e.versions.length - 1].text
+      }));
+      const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
+      if (activeTab) {
+        await browser.tabs.sendMessage(activeTab.id, {
+          action: "restoreAllTexts",
+          data: payload
+        });
+      }
+      sendResponse({ success: true });
+    })();
+    return true;
+  }
+
+  if (msg.action === "restoreVersion") {
+    (async () => {
+      const { [STORAGE_KEY]: entries } = await browser.storage.local.get(STORAGE_KEY);
+      const match = (entries || []).find(e => e.id === msg.entryId);
+      if (!match) return;
+      const version = match.versions.find(v => v.timestamp === msg.timestamp);
+      if (!version) return;
+      const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
+      if (activeTab) {
+        await browser.tabs.sendMessage(activeTab.id, {
+          action: "restoreText",
+          data: { fieldName: match.fieldName, text: version.text }
+        });
+      }
+    })();
+    return false;
+  }
+
+  if (msg.action === "getExportData") {
+    (async () => {
+      const { [STORAGE_KEY]: entries } = await browser.storage.local.get(STORAGE_KEY);
+      sendResponse({ entries: entries || [] });
+    })();
+    return true;
+  }
+
+  if (msg.action === "importData") {
+    (async () => {
+      const imported = msg.entries;
+      const { [STORAGE_KEY]: current } = await browser.storage.local.get(STORAGE_KEY);
+      let existing = current || [];
+      const merged = existing.concat(imported.filter(imp => !existing.some(e => e.pageUrl === imp.pageUrl && e.fieldName === imp.fieldName)));
+      await browser.storage.local.set({ [STORAGE_KEY]: merged });
+      sendResponse({ success: true });
+    })();
+    return true;
+  }
+
+  if (msg.action === "clearBlacklist") {
+    await browser.storage.local.remove("lazarus_blacklist");
+    sendResponse({ success: true });
+    return true;
+  }
 });
 
-// Context menu fallback
+browser.contextMenus.removeAll();
 browser.runtime.onInstalled.addListener(() => {
   browser.contextMenus.create({
     id: "lazarus-resurrect",
     title: "☥ Resurrect Last Text",
     contexts: ["editable"]
+  });
+  browser.contextMenus.create({
+    id: "lazarus-blacklist-toggle",
+    title: "☥ Toggle recording for this site",
+    contexts: ["page"]
   });
 });
 
@@ -98,13 +174,33 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === "lazarus-resurrect" && tab) {
     const { [STORAGE_KEY]: entries } = await browser.storage.local.get(STORAGE_KEY);
     if (!entries || entries.length === 0) return;
-
     const match = entries.find(e => e.pageUrl === tab.url) || entries[0];
     if (match) {
+      const version = match.versions[match.versions.length - 1];
       browser.tabs.sendMessage(tab.id, {
         action: "restoreText",
-        data: { fieldName: match.fieldName, text: match.text }
+        data: { fieldName: match.fieldName, text: version.text }
       });
+    }
+  }
+  if (info.menuItemId === "lazarus-blacklist-toggle" && tab) {
+    const hostname = new URL(tab.url).hostname;
+    let { lazarus_blacklist } = await browser.storage.local.get("lazarus_blacklist");
+    let list = lazarus_blacklist || [];
+    if (list.includes(hostname)) {
+      list = list.filter(h => h !== hostname);
+    } else {
+      list.push(hostname);
+    }
+    await browser.storage.local.set({ lazarus_blacklist: list });
+  }
+});
+
+browser.commands.onCommand.addListener(async (command) => {
+  if (command === "open-command-palette") {
+    const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
+    if (activeTab) {
+      browser.tabs.sendMessage(activeTab.id, { action: "toggleCommandPalette" });
     }
   }
 });
