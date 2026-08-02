@@ -15,9 +15,7 @@ async function isBlacklisted(url) {
     const hostname = new URL(url).hostname;
     const list = await getBlacklist();
     return list.includes(hostname);
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 }
 
 async function cleanExpired(entries) {
@@ -54,8 +52,11 @@ async function saveEntry(newEntry) {
 }
 
 function uuidFallback() {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  let idx = 0;
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-    const r = crypto.getRandomValues(new Uint8Array(1))[0];
+    const r = bytes[idx++];
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
   });
@@ -214,6 +215,7 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
       list.push(hostname);
     }
     await browser.storage.local.set({ lazarus_blacklist: list });
+    browser.runtime.sendMessage({ action: "blacklist-changed" });
   }
 });
 
