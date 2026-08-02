@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Lazarus: Form Recovery",
-  "version": "4.2.0",
-  "description": "Recover lost form data. Automatically saves everything you type.",
+  "version": "4.3.0",
+  "description": "Recover lost form data. Automatically saves everything you type. Now with full‑page restore, version history, and domain blacklist.",
   "permissions": ["storage", "activeTab", "scripting", "contextMenus"],
   "host_permissions": ["<all_urls>"],
   "background": {
@@ -21,5 +21,14 @@
       "js": ["content.js"],
       "run_at": "document_idle"
     }
-  ]
+  ],
+  "commands": {
+    "resurrect-last": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+L",
+        "mac": "Command+Shift+L"
+      },
+      "description": "Open Lazarus command palette"
+    }
+  }
 }
