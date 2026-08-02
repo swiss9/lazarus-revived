@@ -22,18 +22,18 @@
 
     body {
       width: 100%;
-      min-width: 320px;
-      max-width: 400px;
+      min-width: 360px;
+      max-width: 450px;
       background: var(--bg-main);
       color: var(--text-primary);
       padding: 14px;
       display: flex;
       flex-direction: column;
       gap: 12px;
-      min-height: 420px;
+      min-height: 500px;
+      margin: 0 auto;
     }
 
-    /* Header Bar */
     .header {
       display: flex;
       align-items: center;
@@ -87,7 +87,6 @@
       border-radius: 50%;
     }
 
-    /* Segmented Control Tabs */
     .tab-bar {
       display: flex;
       background: var(--bg-card);
@@ -116,7 +115,21 @@
       border: 1px solid var(--border);
     }
 
-    /* Entries Container */
+    .search-input {
+      width: 100%;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      color: var(--text-primary);
+      font-size: 12px;
+      outline: none;
+    }
+
+    .search-input::placeholder {
+      color: var(--text-muted);
+    }
+
     .entries-container {
       display: flex;
       flex-direction: column;
@@ -214,7 +227,6 @@
 
     .btn-primary:hover { opacity: 0.9; }
 
-    /* Modern Empty State */
     .empty-state {
       display: flex;
       flex-direction: column;
@@ -243,7 +255,6 @@
       line-height: 1.4;
     }
 
-    /* Footer Navigation */
     .footer {
       margin-top: auto;
       padding-top: 10px;
@@ -284,48 +295,152 @@
       margin: 0 auto;
       border-radius: 6px;
     }
+
+    .action-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 4px;
+    }
+
+    .version-modal {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.6);
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .version-modal-content {
+      background: var(--bg-card);
+      border: 1px solid var(--border-accent);
+      border-radius: 8px;
+      padding: 16px;
+      width: 90%;
+      max-width: 350px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .version-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .version-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .version-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .version-snippet {
+      flex: 1;
+      font-size: 12px;
+      color: var(--text-secondary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .small {
+      font-size: 10px;
+      padding: 2px 6px;
+    }
+
+    #lock-screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      height: 100%;
+      flex: 1;
+    }
+
+    #main-ui {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex: 1;
+    }
   </style>
 </head>
 <body>
-  <div class="header">
-    <div class="brand">
-      <div class="brand-icon">☥</div>
-      <span class="brand-title">Lazarus</span>
-    </div>
-    <div class="status-badge">
-      <span class="status-dot"></span> Vault Active
-    </div>
+  <div id="lock-screen">
+    <div class="empty-icon">🔒</div>
+    <div class="empty-title">Vault Locked</div>
+    <input type="password" id="pin-input" placeholder="Enter PIN" class="search-input" style="width:80%;">
+    <button id="unlock-btn" class="btn-primary">Unlock</button>
+    <div id="pin-error" style="display:none; color:var(--danger); font-size:11px;">Incorrect PIN</div>
   </div>
 
-  <div class="tab-bar">
-    <button class="tab-btn active" id="tab-site">Current Site</button>
-    <button class="tab-btn" id="tab-all">All Vaults</button>
-  </div>
-
-  <div id="entries" class="entries-container"></div>
-
-  <div id="donate-modal">
-    <p style="color: var(--text-secondary); font-weight: 600; margin-bottom: 8px;">Support Lazarus</p>
-    <div style="margin-bottom: 10px;">
-      <p style="color: var(--accent); margin-bottom: 4px;">USDC on Solana</p>
-      <img src="donate-qr.png" alt="Solana QR">
-      <p style="font-size:10px; margin-top:4px; word-break: break-all;">
-        <a href="solana:HDnhGVB3JGBjnYy8acuhohTPUNgMHRKv3p4CsK7T1dCK" style="color:var(--text-secondary);">HDnhGVB3JGBjnYy8acuhohTPUNgMHRKv3p4CsK7T1dCK</a>
-      </p>
+  <div id="main-ui">
+    <div class="header">
+      <div class="brand">
+        <div class="brand-icon">☥</div>
+        <span class="brand-title">Lazarus</span>
+      </div>
+      <div class="status-badge">
+        <span class="status-dot"></span> Vault Active
+      </div>
     </div>
-    <div>
-      <p style="color: var(--accent); margin-bottom: 4px;">Binance Pay</p>
-      <img src="binance-pay-qr.png" alt="Binance QR">
-      <p style="font-size:10px; margin-top:4px;">
-        <a href="https://app.binance.com/uni-qr/4SGEZptD" target="_blank" style="color:var(--text-secondary);">Tap to pay with Binance</a>
-      </p>
-    </div>
-  </div>
 
-  <div class="footer">
-    <a class="support-btn" id="toggle-donate">
-      <span>☕</span> Support Development
-    </a>
+    <input type="text" id="search-input" class="search-input" placeholder="Search vault...">
+
+    <div class="tab-bar">
+      <button class="tab-btn active" id="tab-site">Current Site</button>
+      <button class="tab-btn" id="tab-all">All Vaults</button>
+    </div>
+
+    <div class="action-row">
+      <button class="btn-primary" id="resurrect-all-btn">☥ Resurrect Full Form</button>
+      <button class="btn-primary" id="blacklist-btn">🔕 Silence Site</button>
+    </div>
+
+    <div id="entries" class="entries-container"></div>
+
+    <div class="action-row">
+      <button class="btn-primary" id="export-btn">📤 Export Vault</button>
+      <button class="btn-primary" id="import-btn">📥 Import Vault</button>
+    </div>
+
+    <div id="donate-modal">
+      <p style="color: var(--text-secondary); font-weight: 600; margin-bottom: 8px;">Support Lazarus</p>
+      <div style="margin-bottom: 10px;">
+        <p style="color: var(--accent); margin-bottom: 4px;">USDC on Solana</p>
+        <img src="donate-qr.png" alt="Solana QR">
+        <p style="font-size:10px; margin-top:4px; word-break: break-all;">
+          <a href="solana:HDnhGVB3JGBjnYy8acuhohTPUNgMHRKv3p4CsK7T1dCK" style="color:var(--text-secondary);">HDnhGVB3JGBjnYy8acuhohTPUNgMHRKv3p4CsK7T1dCK</a>
+        </p>
+      </div>
+      <div>
+        <p style="color: var(--accent); margin-bottom: 4px;">Binance Pay</p>
+        <img src="binance-pay-qr.png" alt="Binance QR">
+        <p style="font-size:10px; margin-top:4px;">
+          <a href="https://app.binance.com/uni-qr/4SGEZptD" target="_blank" style="color:var(--text-secondary);">Tap to pay with Binance</a>
+        </p>
+      </div>
+    </div>
+
+    <div class="footer">
+      <a class="support-btn" id="toggle-donate">
+        <span>☕</span> Support Development
+      </a>
+      <button class="btn-icon" id="lock-btn">🔒 Locked</button>
+    </div>
   </div>
 
   <script src="popup.js"></script>
