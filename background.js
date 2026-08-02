@@ -56,13 +56,23 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  if (msg.action === "deleteEntry") {
+    (async () => {
+      const { [STORAGE_KEY]: raw } = await browser.storage.local.get(STORAGE_KEY);
+      let entries = raw || [];
+      entries = entries.filter(e => e.id !== msg.entryId);
+      await browser.storage.local.set({ [STORAGE_KEY]: entries });
+      sendResponse({ success: true });
+    })();
+    return true;
+  }
+
   if (msg.action === "restoreField") {
     (async () => {
       const { [STORAGE_KEY]: entries } = await browser.storage.local.get(STORAGE_KEY);
       const match = (entries || []).find(e => e.id === msg.entryId);
       if (!match) return;
 
-      // Send to the active tab, avoiding strict URL matching issues
       const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
       if (activeTab) {
         await browser.tabs.sendMessage(activeTab.id, {
@@ -72,5 +82,29 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
     })();
     return false;
+  }
+});
+
+// Context menu fallback
+browser.runtime.onInstalled.addListener(() => {
+  browser.contextMenus.create({
+    id: "lazarus-resurrect",
+    title: "☥ Resurrect Last Text",
+    contexts: ["editable"]
+  });
+});
+
+browser.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId === "lazarus-resurrect" && tab) {
+    const { [STORAGE_KEY]: entries } = await browser.storage.local.get(STORAGE_KEY);
+    if (!entries || entries.length === 0) return;
+
+    const match = entries.find(e => e.pageUrl === tab.url) || entries[0];
+    if (match) {
+      browser.tabs.sendMessage(tab.id, {
+        action: "restoreText",
+        data: { fieldName: match.fieldName, text: match.text }
+      });
+    }
   }
 });
