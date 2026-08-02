@@ -5,15 +5,33 @@ const MAX_ENTRIES = 500;
 const MAX_AGE_DAYS = 30;
 const MAX_VERSIONS = 10;
 
+async function getBlacklist() {
+  const { lazarus_blacklist } = await browser.storage.local.get("lazarus_blacklist");
+  return lazarus_blacklist || [];
+}
+
+async function isBlacklisted(url) {
+  try {
+    const hostname = new URL(url).hostname;
+    const list = await getBlacklist();
+    return list.includes(hostname);
+  } catch {
+    return false;
+  }
+}
+
 async function cleanExpired(entries) {
   const cutoff = Date.now() - MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
   return entries.filter(e => e.versions.length && e.versions[e.versions.length - 1].timestamp > cutoff);
 }
 
 async function saveEntry(newEntry) {
+  if (await isBlacklisted(newEntry.pageUrl)) return;
+
   let { [STORAGE_KEY]: raw } = await browser.storage.local.get(STORAGE_KEY);
   let entries = raw || [];
   const existingIndex = entries.findIndex(e => e.pageUrl === newEntry.pageUrl && e.fieldName === newEntry.fieldName);
+
   if (existingIndex !== -1) {
     const existing = entries[existingIndex];
     const lastVersion = existing.versions[existing.versions.length - 1];
@@ -28,6 +46,7 @@ async function saveEntry(newEntry) {
     newEntry.versions = [{ text: newEntry.text, timestamp: Date.now() }];
     entries.push(newEntry);
   }
+
   entries.sort((a, b) => b.versions[b.versions.length - 1].timestamp - a.versions[a.versions.length - 1].timestamp);
   entries = entries.slice(0, MAX_ENTRIES);
   entries = await cleanExpired(entries);
@@ -35,9 +54,12 @@ async function saveEntry(newEntry) {
 }
 
 function uuid() {
+  const arr = new Uint32Array(4);
+  crypto.getRandomValues(arr);
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-    const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
+    const r = arr[0] & 0x3 | 0x8;
+    arr[0] >>= 4;
+    return c === 'x' ? r.toString(16) : ((crypto.getRandomValues(new Uint8Array(1))[0] & 0xf) >>> 0).toString(16);
   });
 }
 
@@ -140,6 +162,7 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === "importData") {
     (async () => {
       const imported = msg.entries;
+      imported.forEach(e => { e.id = uuid(); });
       const { [STORAGE_KEY]: current } = await browser.storage.local.get(STORAGE_KEY);
       let existing = current || [];
       const merged = existing.concat(imported.filter(imp => !existing.some(e => e.pageUrl === imp.pageUrl && e.fieldName === imp.fieldName)));
