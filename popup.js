@@ -15,11 +15,14 @@ function timeAgo(ms) {
 }
 
 async function refreshEntries() {
-  const { entries } = await browser.runtime.sendMessage({ action: "getSavedData", currentTabUrl: showAll ? null : currentTabUrl });
+  const { entries } = await browser.runtime.sendMessage({
+    action: "getSavedData",
+    currentTabUrl: showAll ? null : currentTabUrl
+  });
   const container = document.getElementById('entries');
   container.innerHTML = '';
   if (!entries || entries.length === 0) {
-    container.textContent = showAll ? 'No saved forms anywhere.' : 'No saved forms on this site.';
+    container.textContent = showAll ? 'No souls captured anywhere.' : 'No souls captured on this site.';
     return;
   }
   entries.forEach(entry => {
@@ -44,7 +47,7 @@ async function refreshEntries() {
     snippet.textContent = entry.text.slice(0, 50) + (entry.text.length > 50 ? '...' : '');
     
     const btn = document.createElement('button');
-    btn.textContent = 'Restore';
+    btn.textContent = '☥ Resurrect';
     btn.addEventListener('click', () => {
       browser.runtime.sendMessage({ action: "restoreField", entryId: entry.id });
     });
@@ -62,7 +65,7 @@ async function init() {
     e.preventDefault();
     showAll = !showAll;
     document.getElementById('filter-label').textContent = showAll ? 'all sites' : 'current site';
-    document.getElementById('toggle-filter').textContent = showAll ? '(current site only)' : '(all entries)';
+    document.getElementById('toggle-filter').textContent = showAll ? '(current site only)' : '(all graves)';
     refreshEntries();
   });
   
