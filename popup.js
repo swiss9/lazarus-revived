@@ -10,88 +10,105 @@ function timeAgo(ms) {
   if (min < 60) return `${min}m ago`;
   const hrs = Math.floor(min / 60);
   if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function escapeHtml(str) {
+  return (str || '').replace(/[&<>"']/g, match => {
+    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+    return map[match];
+  });
 }
 
 async function refreshEntries() {
+  const container = document.getElementById('entries');
+  container.innerHTML = '';
+
   const { entries } = await browser.runtime.sendMessage({
     action: "getSavedData",
     currentTabUrl: showAll ? null : currentTabUrl
   });
-  const container = document.getElementById('entries');
-  container.innerHTML = '';
+
   if (!entries || entries.length === 0) {
-    container.textContent = showAll ? 'No souls captured anywhere.' : 'No souls captured on this site.';
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">📜</div>
+        <div class="empty-title">No drafts saved ${showAll ? 'yet' : 'for this site'}</div>
+        <div class="empty-desc">Type in any form field and Lazarus will automatically capture your text here.</div>
+      </div>
+    `;
     return;
   }
-  entries.forEach(entry => {
-    const div = document.createElement('div');
-    div.className = 'entry';
-    
-    const strong = document.createElement('strong');
-    strong.textContent = entry.fieldName;
 
-    let hostname = 'unknown site';
+  entries.forEach(entry => {
+    const card = document.createElement('div');
+    card.className = 'entry-card';
+
+    let hostname = 'Unknown Site';
     try {
-      hostname = new URL(entry.pageUrl).hostname || entry.pageUrl;
+      hostname = new URL(entry.pageUrl).hostname.replace('www.', '') || entry.pageUrl;
     } catch (e) {
       hostname = entry.pageUrl;
     }
-    
-    const meta = document.createElement('div');
-    meta.className = 'meta';
-    meta.textContent = `${timeAgo(entry.timestamp)} · ${hostname}`;
-    
-    const snippet = document.createElement('div');
-    snippet.textContent = entry.text.slice(0, 50) + (entry.text.length > 50 ? '...' : '');
-    
-    const btnResurrect = document.createElement('button');
-    btnResurrect.className = 'resurrect';
-    btnResurrect.textContent = '☥ Resurrect';
-    btnResurrect.addEventListener('click', () => {
+
+    card.innerHTML = `
+      <div class="entry-meta">
+        <span class="field-tag">${escapeHtml(entry.fieldName)}</span>
+        <span class="time-tag">${timeAgo(entry.timestamp)} · ${escapeHtml(hostname)}</span>
+      </div>
+      <div class="snippet">${escapeHtml(entry.text)}</div>
+      <div class="card-actions">
+        <button class="btn-icon delete-btn" title="Delete draft">🗑️</button>
+        <button class="btn-primary restore-btn">Resurrect</button>
+      </div>
+    `;
+
+    card.querySelector('.restore-btn').addEventListener('click', () => {
       browser.runtime.sendMessage({ action: "restoreField", entryId: entry.id });
     });
 
-    const btnDelete = document.createElement('button');
-    btnDelete.className = 'delete-btn';
-    btnDelete.textContent = '🗑️';
-    btnDelete.addEventListener('click', async (e) => {
+    card.querySelector('.delete-btn').addEventListener('click', async (e) => {
       e.stopPropagation();
       await browser.runtime.sendMessage({ action: "deleteEntry", entryId: entry.id });
       refreshEntries();
     });
-    
-    div.append(strong, meta, snippet, btnResurrect, btnDelete);
-    container.appendChild(div);
+
+    container.appendChild(card);
   });
 }
 
 async function init() {
-  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-  currentTabUrl = tab.url;
-  
-  document.getElementById('toggle-filter').addEventListener('click', (e) => {
-    e.preventDefault();
-    showAll = !showAll;
-    document.getElementById('filter-label').textContent = showAll ? 'all sites' : 'current site';
-    document.getElementById('toggle-filter').textContent = showAll ? '(current site only)' : '(all graves)';
+  try {
+    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+    currentTabUrl = tab ? tab.url : '';
+  } catch (e) {
+    currentTabUrl = '';
+  }
+
+  const tabSite = document.getElementById('tab-site');
+  const tabAll = document.getElementById('tab-all');
+
+  tabSite.addEventListener('click', () => {
+    showAll = false;
+    tabSite.classList.add('active');
+    tabAll.classList.remove('active');
     refreshEntries();
   });
-  
-  document.getElementById('show-donate').addEventListener('click', (e) => {
-    e.preventDefault();
-    const donateDiv = document.getElementById('donate-content');
-    const toggle = document.getElementById('show-donate');
-    if (donateDiv.style.display === 'none' || !donateDiv.style.display) {
-      donateDiv.style.display = 'block';
-      toggle.textContent = '☕ Close';
-    } else {
-      donateDiv.style.display = 'none';
-      toggle.textContent = '☕ Support Lazarus';
-    }
+
+  tabAll.addEventListener('click', () => {
+    showAll = true;
+    tabAll.classList.add('active');
+    tabSite.classList.remove('active');
+    refreshEntries();
   });
-  
+
+  document.getElementById('toggle-donate').addEventListener('click', (e) => {
+    e.preventDefault();
+    const modal = document.getElementById('donate-modal');
+    const isHidden = modal.style.display === 'none' || !modal.style.display;
+    modal.style.display = isHidden ? 'flex' : 'none';
+  });
+
   await refreshEntries();
 }
 
