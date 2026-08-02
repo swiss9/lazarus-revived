@@ -1,64 +1,323 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
+    :root {
+      --bg-main: #09090b;
+      --bg-card: #18181b;
+      --bg-card-hover: #27272a;
+      --border: #27272a;
+      --border-accent: #3f3f46;
+      --accent: #d97706;
+      --accent-glow: rgba(217, 119, 6, 0.15);
+      --text-primary: #f4f4f5;
+      --text-secondary: #a1a1aa;
+      --text-muted: #71717a;
+      --danger: #ef4444;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+
     body {
-      width: 320px; padding: 10px; font-family: sans-serif;
-      background: #1A1A1D; color: #E0E0E0; margin: 0;
+      width: 100%;
+      min-width: 320px;
+      max-width: 400px;
+      background: var(--bg-main);
+      color: var(--text-primary);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 420px;
     }
-    h3 {
-      margin: 0 0 8px 0; font-weight: normal;
-      color: #D4AF37; font-size: 1.2em;
+
+    /* Header Bar */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
     }
-    .entry {
-      margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 6px;
-      position: relative;
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
-    .entry button.resurrect {
-      float: right; margin-left: 10px;
-      background: #D4AF37; color: #1A1A1D; border: none;
-      border-radius: 4px; padding: 3px 8px; font-weight: bold; cursor: pointer;
+
+    .brand-icon {
+      width: 26px;
+      height: 26px;
+      background: var(--accent-glow);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 14px;
     }
-    .entry .delete-btn {
-      position: absolute; right: 0; top: 0;
-      background: none; border: none; color: #9E9E9E; cursor: pointer;
-      font-size: 16px; line-height: 1; padding: 0 4px;
-      opacity: 0.7;
+
+    .brand-title {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: -0.2px;
     }
-    .entry .delete-btn:hover { opacity: 1; color: #D4AF37; }
-    .meta { font-size: 0.75em; color: #9E9E9E; margin-bottom: 2px; }
-    #filter-bar { margin-bottom: 10px; font-size: 0.85em; }
-    .link { color: #D4AF37; text-decoration: none; cursor: pointer; }
-    #donate-toggle { text-align: center; margin-top: 12px; }
-    #donate-content { display: none; margin-top: 10px; text-align: center; }
-    #donate-content img { width: 100px; height: 100px; margin: 5px; }
-    #donate-content a { color: #D4AF37; }
-    .anker { font-size: 1.4em; margin-right: 4px; vertical-align: middle; }
+
+    .status-badge {
+      font-size: 11px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 3px 8px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      background: #22c55e;
+      border-radius: 50%;
+    }
+
+    /* Segmented Control Tabs */
+    .tab-bar {
+      display: flex;
+      background: var(--bg-card);
+      padding: 3px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .tab-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 6px 0;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .tab-btn.active {
+      background: var(--bg-main);
+      color: var(--text-primary);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+      border: 1px solid var(--border);
+    }
+
+    /* Entries Container */
+    .entries-container {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex: 1;
+      overflow-y: auto;
+      max-height: 300px;
+    }
+
+    .entry-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .entry-card:hover {
+      border-color: var(--border-accent);
+      background: var(--bg-card-hover);
+    }
+
+    .entry-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+    }
+
+    .field-tag {
+      font-weight: 600;
+      color: var(--accent);
+      background: var(--accent-glow);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 11px;
+    }
+
+    .time-tag {
+      color: var(--text-muted);
+    }
+
+    .snippet {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.4;
+      word-break: break-word;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .card-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 2px;
+      padding-top: 6px;
+      border-top: 1px solid rgba(255,255,255,0.04);
+    }
+
+    .btn-icon {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 3px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+      transition: color 0.2s, background 0.2s;
+    }
+
+    .btn-icon:hover {
+      color: var(--danger);
+      background: rgba(239, 68, 68, 0.1);
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #000;
+      font-weight: 600;
+      font-size: 11px;
+      border: none;
+      padding: 4px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .btn-primary:hover { opacity: 0.9; }
+
+    /* Modern Empty State */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 36px 16px;
+      text-align: center;
+      gap: 8px;
+    }
+
+    .empty-icon {
+      font-size: 28px;
+      opacity: 0.4;
+    }
+
+    .empty-title {
+      font-size: 13px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .empty-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      max-width: 220px;
+      line-height: 1.4;
+    }
+
+    /* Footer Navigation */
+    .footer {
+      margin-top: auto;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .support-btn {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+
+    .support-btn:hover { color: var(--accent); }
+
+    #donate-modal {
+      display: none;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+      font-size: 11px;
+      gap: 8px;
+      flex-direction: column;
+    }
+
+    #donate-modal img {
+      width: 100px;
+      height: 100px;
+      margin: 0 auto;
+      border-radius: 6px;
+    }
   </style>
 </head>
 <body>
-  <h3><span class="anker">☥</span> Lazarus — Resurrecting lost text...</h3>
-  <div id="filter-bar">
-    Form Vault: <span id="filter-label">current site</span>
-    <a href="#" id="toggle-filter" class="link">(all graves)</a>
+  <div class="header">
+    <div class="brand">
+      <div class="brand-icon">☥</div>
+      <span class="brand-title">Lazarus</span>
+    </div>
+    <div class="status-badge">
+      <span class="status-dot"></span> Vault Active
+    </div>
   </div>
-  <div id="entries"></div>
-  <div id="donate-toggle">
-    <a href="#" id="show-donate" class="link">☕ Support Lazarus</a>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tab-site">Current Site</button>
+    <button class="tab-btn" id="tab-all">All Vaults</button>
   </div>
-  <div id="donate-content">
-    <p><strong>USDC on Solana</strong><br><small>Fee &lt; $0.01</small></p>
-    <a href="solana:HDnhGVB3JGBjnYy8acuhohTPUNgMHRKv3p4CsK7T1dCK">
+
+  <div id="entries" class="entries-container"></div>
+
+  <div id="donate-modal">
+    <p style="color: var(--text-secondary); font-weight: 600;">Support Lazarus</p>
+    <div>
+      <p style="color: var(--accent); margin-bottom: 4px;">USDC (Solana)</p>
       <img src="donate-qr.png" alt="Solana QR">
-    </a>
-    <p><a href="solana:HDnhGVB3JGBjnYy8acuhohTPUNgMHRKv3p4CsK7T1dCK" class="link">HDnhGVB3…T1dCK</a></p>
-    <p style="margin-top:10px;"><strong>Binance Pay</strong><br><small>No network fee</small></p>
-    <a href="https://app.binance.com/uni-qr/4SGEZptD" target="_blank">
-      <img src="binance-pay-qr.png" alt="Binance QR">
-    </a>
-    <p><a href="https://app.binance.com/uni-qr/4SGEZptD" target="_blank" class="link">Tap to pay with Binance</a></p>
+    </div>
   </div>
+
+  <div class="footer">
+    <a class="support-btn" id="toggle-donate">
+      <span>☕</span> Support Development
+    </a>
+  </div>
+
   <script src="popup.js"></script>
 </body>
-                                            </html>
+  </html>
