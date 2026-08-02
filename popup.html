@@ -3,49 +3,54 @@
 <head>
   <meta charset="utf-8">
   <style>
-    body { width: 300px; padding: 10px; font-family: sans-serif; }
-    .entry { margin-bottom: 8px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
-    .entry button { float: right; }
-    #donate { margin-top: 15px; text-align: center; font-size: 0.9em; }
-    #donate p { margin: 4px 0; }
-    #donate a { color: #4a90d9; text-decoration: none; }
-    .qr-img { width:120px; height:120px; }
+    body {
+      width: 320px; padding: 10px; font-family: sans-serif;
+      background: #1A1A1D; color: #E0E0E0; margin: 0;
+    }
+    h3 {
+      margin: 0 0 8px 0; font-weight: normal;
+      color: #D4AF37; font-size: 1.2em;
+    }
+    .entry {
+      margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 6px;
+    }
+    .entry button {
+      float: right; margin-left: 10px;
+      background: #D4AF37; color: #1A1A1D; border: none;
+      border-radius: 4px; padding: 3px 8px; font-weight: bold; cursor: pointer;
+    }
+    .meta { font-size: 0.75em; color: #9E9E9E; }
+    #filter-bar { margin-bottom: 10px; font-size: 0.85em; }
+    .link { color: #D4AF37; text-decoration: none; cursor: pointer; }
+    #donate-toggle { text-align: center; margin-top: 12px; }
+    #donate-content { display: none; margin-top: 10px; text-align: center; }
+    #donate-content img { width: 100px; height: 100px; margin: 5px; }
+    #donate-content a { color: #D4AF37; }
+    .anker { font-size: 1.4em; margin-right: 4px; vertical-align: middle; }
   </style>
 </head>
 <body>
-  <h3>Lazarus: Saved Forms</h3>
-  <div id="entries"></div>
-
-  <div id="donate">
-    <p><strong>Support the revival</strong><br><small>Any amount you like ❤️</small></p>
-
-    <p style="margin-top:15px;"><strong>USDC via Solana</strong><br>
-    <small>Fee &lt; $0.01 · Instant</small></p>
-    <p>
-      <a href="solana:HDnhGVB3JGBjnYy8acuhohTPUNgMHRKv3p4CsK7T1dCK">
-        <img src="donate-qr.png" alt="Solana USDC QR" class="qr-img">
-      </a>
-    </p>
-    <p>
-      <a href="solana:HDnhGVB3JGBjnYy8acuhohTPUNgMHRKv3p4CsK7T1dCK">
-        <code style="word-break:break-all; font-size:0.7em;">HDnhGVB3…T1dCK</code>
-      </a>
-    </p>
-
-    <p style="margin-top:15px;"><strong>USDC via Binance Pay</strong><br>
-    <small>No network fee · Instant</small></p>
-    <p>
-      <a href="https://app.binance.com/uni-qr/4SGEZptD" target="_blank">
-        <img src="binance-pay-qr.png" alt="Binance Pay QR" class="qr-img">
-      </a>
-    </p>
-    <p>
-      <a href="https://app.binance.com/uni-qr/4SGEZptD" target="_blank">
-        <small>Tap to pay with Binance</small>
-      </a>
-    </p>
+  <h3><span class="anker">☥</span> Lazarus — Resurrecting lost text...</h3>
+  <div id="filter-bar">
+    Form Vault: <span id="filter-label">current site</span>
+    <a href="#" id="toggle-filter" class="link">(all graves)</a>
   </div>
-
+  <div id="entries"></div>
+  <div id="donate-toggle">
+    <a href="#" id="show-donate" class="link">☕ Support Lazarus</a>
+  </div>
+  <div id="donate-content">
+    <p><strong>USDC on Solana</strong><br><small>Fee &lt; $0.01</small></p>
+    <a href="solana:HDnhGVB3JGBjnYy8acuhohTPUNgMHRKv3p4CsK7T1dCK">
+      <img src="donate-qr.png" alt="Solana QR">
+    </a>
+    <p><a href="solana:HDnhGVB3JGBjnYy8acuhohTPUNgMHRKv3p4CsK7T1dCK" class="link">HDnhGVB3…T1dCK</a></p>
+    <p style="margin-top:10px;"><strong>Binance Pay</strong><br><small>No network fee</small></p>
+    <a href="https://app.binance.com/uni-qr/4SGEZptD" target="_blank">
+      <img src="binance-pay-qr.png" alt="Binance QR">
+    </a>
+    <p><a href="https://app.binance.com/uni-qr/4SGEZptD" target="_blank" class="link">Tap to pay with Binance</a></p>
+  </div>
   <script src="popup.js"></script>
 </body>
 </html>
