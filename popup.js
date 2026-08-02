@@ -2,11 +2,23 @@ const browser = globalThis.browser || globalThis.chrome;
 
 let showAll = false;
 let currentTabUrl = '';
-
 let lazarus_lock_active = false;
 let lazarus_unlocked = false;
 let lazarus_salt = null;
 let lazarus_pin_hash = null;
+let cachedBlacklist = [];
+
+async function loadBlacklist() {
+  const { lazarus_blacklist } = await browser.storage.local.get("lazarus_blacklist");
+  cachedBlacklist = lazarus_blacklist || [];
+}
+
+function isSiteBlacklisted() {
+  try {
+    const hostname = new URL(currentTabUrl).hostname;
+    return cachedBlacklist.includes(hostname);
+  } catch { return false; }
+}
 
 async function loadLockState() {
   const { lazarus_lock, lazarus_salt_storage, lazarus_pin_hash_storage } = await browser.storage.local.get([
@@ -92,10 +104,8 @@ async function refreshEntries() {
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">🔒</div><div class="empty-title">Vault Locked</div><div class="empty-desc">Enter your PIN to access saved texts.</div></div>`;
     return;
   }
-
-  const searchValue = document.getElementById('search-input') ? document.getElementById('search-input').value.toLowerCase().trim() : '';
+  const searchValue = document.getElementById('search-input')?.value.toLowerCase().trim() || '';
   const entries = await getEntriesFromStorage();
-
   if (!entries || entries.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
@@ -106,7 +116,6 @@ async function refreshEntries() {
     `;
     return;
   }
-
   const filtered = entries.filter(e => {
     if (!searchValue) return true;
     const latestText = e.versions[e.versions.length - 1].text.toLowerCase();
@@ -114,22 +123,16 @@ async function refreshEntries() {
     const url = e.pageUrl.toLowerCase();
     return field.includes(searchValue) || latestText.includes(searchValue) || url.includes(searchValue);
   });
-
   if (filtered.length === 0) {
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">No matching drafts</div></div>`;
     return;
   }
-
   filtered.forEach(entry => {
     const card = document.createElement('div');
     card.className = 'entry-card';
     const latestVersion = entry.versions[entry.versions.length - 1];
     let hostname = 'Unknown Site';
-    try {
-      hostname = new URL(entry.pageUrl).hostname.replace('www.', '') || entry.pageUrl;
-    } catch (e) {
-      hostname = entry.pageUrl;
-    }
+    try { hostname = new URL(entry.pageUrl).hostname.replace('www.', '') || entry.pageUrl; } catch (e) { hostname = entry.pageUrl; }
     card.innerHTML = `
       <div class="entry-meta">
         <span class="field-tag">${escapeHtml(entry.fieldName)}</span>
@@ -142,22 +145,18 @@ async function refreshEntries() {
         <button class="btn-primary restore-btn">Resurrect</button>
       </div>
     `;
-
     card.querySelector('.restore-btn').addEventListener('click', () => {
       browser.runtime.sendMessage({ action: "restoreField", entryId: entry.id });
     });
-
     card.querySelector('.delete-btn').addEventListener('click', async (e) => {
       e.stopPropagation();
       await browser.runtime.sendMessage({ action: "deleteEntry", entryId: entry.id });
       refreshEntries();
     });
-
     card.querySelector('.history-btn').addEventListener('click', async (e) => {
       e.stopPropagation();
       showVersionHistory(entry);
     });
-
     container.appendChild(card);
   });
 }
@@ -203,35 +202,28 @@ async function toggleBlacklist() {
   let { lazarus_blacklist } = await browser.storage.local.get("lazarus_blacklist");
   let list = lazarus_blacklist || [];
   const index = list.indexOf(hostname);
-  if (index > -1) {
-    list.splice(index, 1);
-  } else {
-    list.push(hostname);
-  }
+  if (index > -1) list.splice(index, 1);
+  else list.push(hostname);
   await browser.storage.local.set({ lazarus_blacklist: list });
+  cachedBlacklist = list;
   updateBlacklistButton();
   updateStatusBadge();
+  browser.runtime.sendMessage({ action: "blacklist-changed" });
 }
 
-async function updateBlacklistButton() {
+function updateBlacklistButton() {
   const btn = document.getElementById('blacklist-btn');
-  const hostname = new URL(currentTabUrl).hostname;
-  let { lazarus_blacklist } = await browser.storage.local.get("lazarus_blacklist");
-  const list = lazarus_blacklist || [];
-  if (list.includes(hostname)) {
+  if (isSiteBlacklisted()) {
     btn.textContent = '🔇 Unsilence Site';
   } else {
     btn.textContent = '🔕 Silence Site';
   }
 }
 
-async function updateStatusBadge() {
+function updateStatusBadge() {
   const dot = document.getElementById('status-dot');
   const text = document.getElementById('status-text');
-  const hostname = new URL(currentTabUrl).hostname;
-  let { lazarus_blacklist } = await browser.storage.local.get("lazarus_blacklist");
-  const list = lazarus_blacklist || [];
-  if (list.includes(hostname)) {
+  if (isSiteBlacklisted()) {
     dot.classList.add('paused');
     text.textContent = 'Vault Paused';
   } else {
@@ -281,34 +273,44 @@ function showPinModal(mode) {
   modal.setAttribute('role', 'dialog');
   modal.setAttribute('aria-modal', 'true');
   const title = mode === 'set' ? 'Set PIN' : 'Enter PIN to disable lock';
-  const btnText = mode === 'set' ? 'Set' : 'Verify';
   modal.innerHTML = `
     <div class="pin-modal-content">
       <div class="pin-header">
         <span class="field-tag">${title}</span>
         <button class="btn-icon close-modal" aria-label="Close">✖</button>
       </div>
-      <input type="password" class="search-input pin-modal-input" placeholder="Enter PIN" aria-label="PIN">
-      <div class="error-text pin-error">Invalid PIN</div>
-      <button class="btn-primary pin-submit" style="margin-top:8px;">${btnText}</button>
+      <input type="password" class="search-input pin-input" placeholder="Enter PIN" aria-label="PIN" style="margin-bottom:8px;">
+      ${mode === 'set' ? '<input type="password" class="search-input pin-confirm" placeholder="Confirm PIN" aria-label="Confirm PIN" style="margin-bottom:8px;">' : ''}
+      <div class="error-text pin-error">${mode === 'set' ? 'PINs do not match' : 'Invalid PIN'}</div>
+      <button class="btn-primary pin-submit" style="margin-top:8px;">${mode === 'set' ? 'Set' : 'Verify'}</button>
     </div>
   `;
   document.body.appendChild(modal);
-  modal.querySelector('.close-modal').addEventListener('click', () => modal.remove());
+  const closeBtn = modal.querySelector('.close-modal');
+  const submitBtn = modal.querySelector('.pin-submit');
+  const inputField = modal.querySelector('.pin-input');
+  const confirmField = modal.querySelector('.pin-confirm');
+  const errorDiv = modal.querySelector('.pin-error');
+
+  closeBtn.addEventListener('click', () => modal.remove());
   modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
 
-  const inputField = modal.querySelector('.pin-modal-input');
-  const errorDiv = modal.querySelector('.pin-error');
-  const submitBtn = modal.querySelector('.pin-submit');
+  inputField.focus();
 
   submitBtn.addEventListener('click', async () => {
     const pin = inputField.value.trim();
     if (!pin) return;
 
     if (mode === 'set') {
+      const confirm = confirmField.value.trim();
+      if (pin !== confirm) {
+        errorDiv.style.display = 'block';
+        return;
+      }
+      errorDiv.style.display = 'none';
       await setLockPin(pin);
       document.getElementById('lock-btn').textContent = '🔒 Locked';
-      lazarus_unlocked = true;  // after setting, treat as unlocked for this session
+      lazarus_unlocked = true;
       modal.remove();
       refreshEntries();
     } else if (mode === 'verify') {
@@ -334,7 +336,9 @@ function debouncedRefresh() {
 }
 
 async function init() {
+  await loadBlacklist();
   await loadLockState();
+
   if (lazarus_lock_active) {
     document.getElementById('lock-screen').style.display = 'flex';
     document.getElementById('main-ui').style.display = 'none';
@@ -346,14 +350,10 @@ async function init() {
   try {
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
     currentTabUrl = tab ? tab.url : '';
-  } catch (e) {
-    currentTabUrl = '';
-  }
+  } catch (e) { currentTabUrl = ''; }
 
-  if (currentTabUrl) {
-    await updateStatusBadge();
-    await updateBlacklistButton();
-  }
+  updateStatusBadge();
+  updateBlacklistButton();
 
   document.getElementById('tab-site').addEventListener('click', () => {
     showAll = false;
@@ -361,7 +361,6 @@ async function init() {
     document.getElementById('tab-all').classList.remove('active');
     refreshEntries();
   });
-
   document.getElementById('tab-all').addEventListener('click', () => {
     showAll = true;
     document.getElementById('tab-all').classList.add('active');
@@ -370,11 +369,8 @@ async function init() {
   });
 
   document.getElementById('search-input').addEventListener('input', debouncedRefresh);
-
   document.getElementById('resurrect-all-btn').addEventListener('click', resurrectFullForm);
-
   document.getElementById('blacklist-btn').addEventListener('click', toggleBlacklist);
-
   document.getElementById('export-btn').addEventListener('click', exportVault);
   document.getElementById('import-btn').addEventListener('click', importVault);
 
@@ -385,30 +381,40 @@ async function init() {
   });
 
   document.getElementById('lock-btn').addEventListener('click', () => {
-    if (lazarus_lock_active) {
-      showPinModal('verify');
-    } else {
-      showPinModal('set');
-    }
+    if (lazarus_lock_active) showPinModal('verify');
+    else showPinModal('set');
   });
 
   document.getElementById('unlock-btn').addEventListener('click', async () => {
-    const pin = document.getElementById('pin-input').value;
+    const pinInput = document.getElementById('pin-input');
+    const pinError = document.getElementById('pin-error');
+    pinError.style.display = 'none';
+    const pin = pinInput.value.trim();
+    if (!pin) return;
     if (await verifyPin(pin)) {
       lazarus_unlocked = true;
       document.getElementById('lock-screen').style.display = 'none';
       document.getElementById('main-ui').style.display = 'flex';
       refreshEntries();
     } else {
-      document.getElementById('pin-error').style.display = 'block';
+      pinError.style.display = 'block';
     }
   });
 
-  if (!lazarus_lock_active) {
-    document.getElementById('lock-btn').textContent = '🔓 Unlocked';
-  } else {
-    document.getElementById('lock-btn').textContent = '🔒 Locked';
-  }
+  document.getElementById('pin-input').addEventListener('input', () => {
+    document.getElementById('pin-error').style.display = 'none';
+  });
+
+  document.getElementById('lock-btn').textContent = lazarus_lock_active ? '🔒 Locked' : '🔓 Unlocked';
+
+  browser.runtime.onMessage.addListener((msg) => {
+    if (msg.action === 'blacklist-changed') {
+      loadBlacklist().then(() => {
+        updateStatusBadge();
+        updateBlacklistButton();
+      });
+    }
+  });
 
   await refreshEntries();
 }
