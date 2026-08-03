@@ -77,20 +77,22 @@ observer.observe(document.body, { childList: true, subtree: true });
 
 function findFieldByName(name) {
   if (!name || name === 'unnamed') return null;
-  try {
-    const escaped = CSS.escape(name);
-    const match = document.querySelector(`[name="${escaped}"], #${escaped}, .${escaped}`);
-    if (match) return match;
-  } catch (e) {}
+  const byName = document.querySelector(`[name="${name}"], #${name}`);
+  if (byName) return byName;
+  if (name.indexOf(' ') === -1) {
+    const byClass = document.querySelector(`.${name}`);
+    if (byClass) return byClass;
+  }
   const all = document.querySelectorAll('input, textarea, [contenteditable="true"]');
   for (const el of all) {
-    const elName = el.name || el.id || (typeof el.className === 'string' ? el.className : '') || 'unnamed';
-    if (elName === name) return el;
+    const elId = el.name || el.id || (typeof el.className === 'string' ? el.className : '') || 'unnamed';
+    if (elId === name) return el;
   }
   return null;
 }
 
 function restoreTextDirect(fieldName, text) {
+  alert('Restoring ' + fieldName + ' with text: ' + text.substring(0, 30));
   const field = findFieldByName(fieldName);
   if (field) {
     if (field.isContentEditable) field.innerText = text;
@@ -99,6 +101,8 @@ function restoreTextDirect(fieldName, text) {
     field.dispatchEvent(new Event('change', { bubbles: true }));
     field.classList.add('lazarus-glow');
     setTimeout(() => field.classList.remove('lazarus-glow'), 600);
+  } else {
+    alert('Field not found: ' + fieldName);
   }
 }
 
@@ -178,6 +182,7 @@ browser.runtime.onMessage.addListener(msg => {
   }
 
   async function showDropdown(field) {
+    alert('showDropdown called for ' + getFieldIdentifier(field));
     dropdownVisible = true;
     try {
       const identifier = getFieldIdentifier(field);
@@ -217,10 +222,9 @@ browser.runtime.onMessage.addListener(msg => {
         iconTouched = false;
       });
       listContainer.appendChild(item);
-      const rect = field.getBoundingClientRect();
       dropdownHost.style.display = 'block';
-      dropdownHost.style.left = rect.left + 'px';
-      dropdownHost.style.top = (rect.bottom + 4) + 'px';
+      dropdownHost.style.left = '10px';
+      dropdownHost.style.top = '200px';
     } catch (err) {
       hideDropdown();
     }
@@ -282,18 +286,16 @@ browser.runtime.onMessage.addListener(msg => {
     }
   });
 
-  iconBtn.addEventListener('touchstart', (e) => {
+  iconBtn.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();
     iconTouched = true;
     iconBtn.style.transform = 'scale(0.9)';
-    if (activeField) showDropdown(activeField);
-  }, { passive: false });
-
-  iconBtn.addEventListener('touchend', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    iconBtn.style.transform = 'scale(1)';
+    if (activeField && activeField.isConnected) {
+      showDropdown(activeField);
+    } else {
+      alert('No active field');
+    }
   });
 
   iconBtn.addEventListener('mousedown', (e) => {
