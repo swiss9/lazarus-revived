@@ -37,7 +37,7 @@ async function saveField(field) {
       text,
       timestamp: Date.now()
     }
-  });
+  }).catch(() => {});
 }
 
 function debouncedSave(field) {
@@ -410,3 +410,5 @@ browser.runtime.onMessage.addListener(msg => {
     });
   }
 })();
+
+alert('Lazarus content script is running');
