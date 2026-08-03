@@ -80,11 +80,15 @@ observer.observe(document.body, { childList: true, subtree: true });
 
 function findFieldByName(name) {
   if (!name || name === 'unnamed') return null;
-  const byName = document.querySelector(`[name="${name}"], #${name}`);
-  if (byName) return byName;
+  try {
+    const bySelector = document.querySelector(`[name="${name}"], #${name}`);
+    if (bySelector) return bySelector;
+  } catch (e) {}
   if (name.indexOf(' ') === -1) {
-    const byClass = document.querySelector(`.${name}`);
-    if (byClass) return byClass;
+    try {
+      const byClass = document.querySelector(`.${name}`);
+      if (byClass) return byClass;
+    } catch (e) {}
   }
   const all = document.querySelectorAll('input, textarea, [contenteditable="true"]');
   for (const el of all) {
