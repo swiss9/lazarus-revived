@@ -172,8 +172,10 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.action === "clearBlacklist") {
-    await browser.storage.local.remove("lazarus_blacklist");
-    sendResponse({ success: true });
+    (async () => {
+        await browser.storage.local.remove("lazarus_blacklist");
+        sendResponse({ success: true });
+    })();
     return true;
   }
 });
