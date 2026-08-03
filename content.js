@@ -10,25 +10,17 @@ function isSensitive(field) {
   return sensitiveNames.some(s => name.includes(s));
 }
 
-function safeClassName(field) {
-  if (field.className && typeof field.className === 'string') return field.className;
-  if (field.classList && field.classList.length) return Array.from(field.classList).join(' ');
-  return '';
-}
-
 function getFieldIdentifier(field) {
-  return field.name || field.id || safeClassName(field) || 'unnamed';
+  return field.name || field.id || field.className || 'unnamed';
 }
 
 const saveTimers = new Map();
-
-async function saveField(field) {
+function saveField(field) {
   if (isSensitive(field)) return;
   if (field.type === 'search' || field.getAttribute('role') === 'searchbox') return;
   if (!field.isConnected) return;
   const text = (field.value || field.innerText || '').trim();
   if (!text || text.length < 4) return;
-
   browser.runtime.sendMessage({
     action: "saveText",
     data: {
@@ -91,7 +83,7 @@ function findFieldByName(name) {
   } catch (e) {}
   const all = document.querySelectorAll('input, textarea, [contenteditable="true"]');
   for (const el of all) {
-    const elName = el.name || el.id || safeClassName(el) || 'unnamed';
+    const elName = el.name || el.id || el.className || 'unnamed';
     if (elName === name) return el;
   }
   return null;
@@ -134,44 +126,20 @@ browser.runtime.onMessage.addListener(msg => {
   document.head.appendChild(style);
 })();
 
-(function inFieldUI() {
+(function simpleUI() {
   const iconHost = document.createElement('div');
   iconHost.id = 'lazarus-icon-host';
-  const shadow = iconHost.attachShadow({ mode: 'open' });
-  shadow.innerHTML = `
-    <style>
-      :host { position: fixed; display: none; z-index: 2147483647; pointer-events: auto; }
-      .icon { width: 24px; height: 24px; background: #1A1A1D; color: #D4AF37; border-radius: 50%;
-              display: flex; align-items: center; justify-content: center; font-size: 16px;
-              cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.4); opacity: 0.8; transition: opacity 0.2s; user-select: none; }
-      .icon:hover { opacity: 1; transform: scale(1.05); }
-    </style>
-    <div class="icon">☥</div>
-  `;
+  iconHost.style.cssText = 'position:fixed;display:none;z-index:2147483647;pointer-events:auto;';
+  iconHost.innerHTML = '<div style="width:24px;height:24px;background:#1A1A1D;color:#D4AF37;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.4);opacity:0.8;">☥</div>';
   document.body.appendChild(iconHost);
-  const iconDiv = iconHost.shadowRoot.querySelector('.icon');
+  const iconDiv = iconHost.querySelector('div');
 
   const dropdownHost = document.createElement('div');
   dropdownHost.id = 'lazarus-dropdown-host';
-  const dropShadow = dropdownHost.attachShadow({ mode: 'open' });
-  dropShadow.innerHTML = `
-    <style>
-      :host { position: fixed; display: none; z-index: 2147483646; }
-      .list { background: #1A1A1D; color: #E0E0E0; border: 1px solid #D4AF37; border-radius: 8px;
-              min-width: 240px; max-width: 360px; max-height: 220px; overflow-y: auto;
-              font-family: sans-serif; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
-      .item { display: flex; align-items: center; padding: 6px 8px; cursor: pointer; border-bottom: 1px solid #333; }
-      .item:hover { background: #2A2A2D; color: #D4AF37; }
-      .item:last-child { border-bottom: none; }
-      .text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px; }
-      .time { font-size: 11px; color: #9E9E9E; margin-right: 8px; white-space: nowrap; }
-      .delete-btn { cursor: pointer; opacity: 0.6; background: none; border: none; color: #E0E0E0; font-size: 14px; padding: 0; margin-left: 4px; }
-      .delete-btn:hover { opacity: 1; color: #D4AF37; }
-    </style>
-    <div class="list"></div>
-  `;
+  dropdownHost.style.cssText = 'position:fixed;display:none;z-index:2147483646;';
+  dropdownHost.innerHTML = '<div class="list" style="background:#1A1A1D;color:#E0E0E0;border:1px solid #D4AF37;border-radius:8px;min-width:240px;max-width:360px;max-height:220px;overflow-y:auto;font-family:sans-serif;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,0.5);"></div>';
   document.body.appendChild(dropdownHost);
-  const listContainer = dropShadow.querySelector('.list');
+  const listContainer = dropdownHost.querySelector('.list');
 
   let activeField = null;
   let dropdownVisible = false;
@@ -229,16 +197,16 @@ browser.runtime.onMessage.addListener(msg => {
       const latestVersion = entry.versions[entry.versions.length - 1];
       listContainer.innerHTML = '';
       const item = document.createElement('div');
-      item.className = 'item';
+      item.style.cssText = 'display:flex;align-items:center;padding:6px 8px;cursor:pointer;border-bottom:1px solid #333;';
       const textDiv = document.createElement('div');
-      textDiv.className = 'text';
+      textDiv.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:8px;';
       textDiv.textContent = latestVersion.text.slice(0, 60) + (latestVersion.text.length > 60 ? '…' : '');
       const timeDiv = document.createElement('div');
-      timeDiv.className = 'time';
+      timeDiv.style.cssText = 'font-size:11px;color:#9E9E9E;margin-right:8px;white-space:nowrap;';
       timeDiv.textContent = timeAgo(latestVersion.timestamp);
       const delBtn = document.createElement('button');
-      delBtn.className = 'delete-btn';
       delBtn.textContent = '🗑️';
+      delBtn.style.cssText = 'cursor:pointer;opacity:0.6;background:none;border:none;color:#E0E0E0;font-size:14px;padding:0;margin-left:4px;';
       delBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         deleteEntry(entry.id);
@@ -304,6 +272,7 @@ browser.runtime.onMessage.addListener(msg => {
     e.preventDefault();
     e.stopPropagation();
     if (activeField) showDropdown(activeField);
+    alert('Icon tapped'); // temporary debug
   });
 
   document.addEventListener('click', (e) => {
@@ -313,102 +282,3 @@ browser.runtime.onMessage.addListener(msg => {
     }
   }, true);
 })();
-
-(function commandPalette() {
-  const host = document.createElement('div');
-  host.id = 'lazarus-cp-host';
-  host.style.display = 'none';
-  host.setAttribute('role', 'dialog');
-  host.setAttribute('aria-modal', 'true');
-  host.setAttribute('aria-label', 'Lazarus command palette');
-  const shadow = host.attachShadow({ mode: 'open' });
-  shadow.innerHTML = `
-    <style>
-      :host { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 2147483640;
-              background: rgba(0,0,0,0.5); display: flex; align-items: flex-start; justify-content: center; padding-top: 15vh; }
-      .panel { background: #1A1A1D; border: 1px solid #D4AF37; border-radius: 12px; width: 90%; max-width: 500px;
-               overflow: hidden; box-shadow: 0 8px 30px rgba(0,0,0,0.6); }
-      .search-box { width: 100%; padding: 12px 16px; background: transparent; border: none; outline: none;
-                    color: #E0E0E0; font-size: 16px; border-bottom: 1px solid #333; }
-      .results { max-height: 300px; overflow-y: auto; }
-      .cp-item { padding: 10px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;
-                 border-bottom: 1px solid #27272a; color: #E0E0E0; font-size: 13px; }
-      .cp-item:hover { background: #2A2A2D; color: #D4AF37; }
-      .cp-field { font-weight: bold; color: #D4AF37; }
-      .cp-snippet { color: #9E9E9E; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    </style>
-    <div class="panel">
-      <input class="search-box" placeholder="Search drafts..." aria-label="Search Lazarus drafts">
-      <div class="results"></div>
-    </div>
-  `;
-  document.body.appendChild(host);
-
-  const input = shadow.querySelector('.search-box');
-  const results = shadow.querySelector('.results');
-  let cpVisible = false;
-  let allEntries = [];
-
-  function hide() {
-    host.style.display = 'none';
-    cpVisible = false;
-    input.value = '';
-    results.innerHTML = '';
-  }
-
-  function show() {
-    host.style.display = 'flex';
-    cpVisible = true;
-    input.focus();
-    loadEntries();
-  }
-
-  async function loadEntries() {
-    const resp = await browser.runtime.sendMessage({ action: "getSavedData", currentTabUrl: window.location.href });
-    allEntries = resp.entries || [];
-    filterResults();
-  }
-
-  function filterResults() {
-    const query = input.value.toLowerCase().trim();
-    results.innerHTML = '';
-    const filtered = allEntries.filter(e => {
-      if (!query) return true;
-      const latest = e.versions[e.versions.length - 1].text.toLowerCase();
-      return e.fieldName.toLowerCase().includes(query) || latest.includes(query) || e.pageUrl.toLowerCase().includes(query);
-    });
-    filtered.forEach(entry => {
-      const latest = entry.versions[entry.versions.length - 1];
-      const item = document.createElement('div');
-      item.className = 'cp-item';
-      item.innerHTML = `<span class="cp-field">${escapeHtml(entry.fieldName)}</span><span class="cp-snippet">${escapeHtml(latest.text.slice(0, 50))}</span>`;
-      item.addEventListener('click', () => {
-        browser.runtime.sendMessage({ action: "restoreField", entryId: entry.id });
-        hide();
-      });
-      results.appendChild(item);
-    });
-  }
-
-  input.addEventListener('input', filterResults);
-  host.addEventListener('click', (e) => {
-    if (e.target === host) hide();
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && cpVisible) hide();
-  });
-
-  window.toggleCommandPalette = function() {
-    if (cpVisible) hide();
-    else show();
-  };
-
-  function escapeHtml(str) {
-    return (str || '').replace(/[&<>"']/g, match => {
-      const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-      return map[match];
-    });
-  }
-})();
-
-alert('Lazarus content script is running');
