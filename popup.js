@@ -206,10 +206,24 @@ async function showVersionHistory(entry) {
   entry.versions.slice().reverse().forEach(version => {
     const row = document.createElement('div');
     row.className = 'version-row';
-    row.innerHTML = `<span class="time-tag">${timeAgo(version.timestamp)}</span><span class="version-snippet">${escapeHtml(version.text.slice(0, 60))}</span><button class="btn-primary small">Restore</button>`;
-    row.querySelector('button').addEventListener('click', () => {
+    row.innerHTML = `
+      <span class="time-tag">${timeAgo(version.timestamp)}</span>
+      <span class="version-snippet">${escapeHtml(version.text.slice(0, 60))}</span>
+      <button class="btn-primary small restore-btn">Restore</button>
+      <button class="btn-primary small promote-btn">Set as current</button>
+    `;
+    row.querySelector('.restore-btn').addEventListener('click', () => {
       sendRestoreToActiveTab(entry.fieldName, version.text);
       modal.remove();
+    });
+    row.querySelector('.promote-btn').addEventListener('click', async () => {
+      await browser.runtime.sendMessage({
+        action: "promoteVersion",
+        entryId: entry.id,
+        timestamp: version.timestamp
+      });
+      modal.remove();
+      refreshEntries();
     });
     list.appendChild(row);
   });
