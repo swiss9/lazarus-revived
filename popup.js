@@ -112,6 +112,15 @@ async function getActiveTabId() {
   return currentTabId;
 }
 
+async function sendRestoreToActiveTab(fieldName, text) {
+  const tabId = await getActiveTabId();
+  if (!tabId) return;
+  browser.tabs.sendMessage(tabId, {
+    action: "restoreText",
+    data: { fieldName, text }
+  }).catch(() => {});
+}
+
 async function refreshEntries() {
   const container = document.getElementById('entries');
   container.innerHTML = '';
@@ -161,16 +170,8 @@ async function refreshEntries() {
         <button class="btn-primary restore-btn">Resurrect</button>
       </div>
     `;
-    card.querySelector('.restore-btn').addEventListener('click', async () => {
-      const tabId = await getActiveTabId();
-      if (!tabId) {
-        alert('No active tab found');
-        return;
-      }
-      browser.tabs.sendMessage(tabId, {
-        action: "restoreText",
-        data: { fieldName: entry.fieldName, text: latestVersion.text }
-      }).catch(err => alert('Restore failed: ' + err.message));
+    card.querySelector('.restore-btn').addEventListener('click', () => {
+      sendRestoreToActiveTab(entry.fieldName, latestVersion.text);
     });
     card.querySelector('.delete-btn').addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -206,13 +207,8 @@ async function showVersionHistory(entry) {
     const row = document.createElement('div');
     row.className = 'version-row';
     row.innerHTML = `<span class="time-tag">${timeAgo(version.timestamp)}</span><span class="version-snippet">${escapeHtml(version.text.slice(0, 60))}</span><button class="btn-primary small">Restore</button>`;
-    row.querySelector('button').addEventListener('click', async () => {
-      const tabId = await getActiveTabId();
-      if (!tabId) return;
-      browser.tabs.sendMessage(tabId, {
-        action: "restoreText",
-        data: { fieldName: entry.fieldName, text: version.text }
-      }).catch(err => alert('Restore failed: ' + err.message));
+    row.querySelector('button').addEventListener('click', () => {
+      sendRestoreToActiveTab(entry.fieldName, version.text);
       modal.remove();
     });
     list.appendChild(row);
@@ -237,7 +233,7 @@ async function resurrectFullForm() {
     browser.tabs.sendMessage(tabId, {
       action: "restoreAllTexts",
       data: payload
-    }).catch(err => alert('Resurrect all failed: ' + err.message));
+    }).catch(() => {});
   }
 }
 
