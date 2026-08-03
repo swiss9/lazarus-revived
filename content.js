@@ -90,30 +90,26 @@ function findFieldByName(name) {
   return null;
 }
 
+function restoreTextDirect(fieldName, text) {
+  const field = findFieldByName(fieldName);
+  if (field) {
+    if (field.isContentEditable) field.innerText = text;
+    else field.value = text;
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    field.dispatchEvent(new Event('change', { bubbles: true }));
+    field.classList.add('lazarus-glow');
+    setTimeout(() => field.classList.remove('lazarus-glow'), 600);
+  }
+}
+
 browser.runtime.onMessage.addListener(msg => {
   if (msg.action === "restoreText") {
     const { fieldName, text } = msg.data;
-    const field = findFieldByName(fieldName);
-    if (field) {
-      if (field.isContentEditable) field.innerText = text;
-      else field.value = text;
-      field.dispatchEvent(new Event('input', { bubbles: true }));
-      field.dispatchEvent(new Event('change', { bubbles: true }));
-      field.classList.add('lazarus-glow');
-      setTimeout(() => field.classList.remove('lazarus-glow'), 600);
-    }
+    restoreTextDirect(fieldName, text);
   }
   if (msg.action === "restoreAllTexts") {
     msg.data.forEach(item => {
-      const field = findFieldByName(item.fieldName);
-      if (field) {
-        if (field.isContentEditable) field.innerText = item.text;
-        else field.value = item.text;
-        field.dispatchEvent(new Event('input', { bubbles: true }));
-        field.dispatchEvent(new Event('change', { bubbles: true }));
-        field.classList.add('lazarus-glow');
-        setTimeout(() => field.classList.remove('lazarus-glow'), 600);
-      }
+      restoreTextDirect(item.fieldName, item.text);
     });
   }
   if (msg.action === "toggleCommandPalette") {
@@ -215,7 +211,7 @@ browser.runtime.onMessage.addListener(msg => {
       item.append(textDiv, timeDiv, delBtn);
       item.addEventListener('click', (e) => {
         if (e.target === delBtn) return;
-        browser.runtime.sendMessage({ action: "restoreField", entryId: entry.id });
+        restoreTextDirect(entry.fieldName, latestVersion.text);
         hideDropdown();
         hideIcon();
         iconTouched = false;
