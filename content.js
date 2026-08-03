@@ -11,10 +11,11 @@ function isSensitive(field) {
 }
 
 function getFieldIdentifier(field) {
-  return field.name || field.id || field.className || 'unnamed';
+  return field.name || field.id || (typeof field.className === 'string' ? field.className : '') || 'unnamed';
 }
 
 const saveTimers = new Map();
+
 function saveField(field) {
   if (isSensitive(field)) return;
   if (field.type === 'search' || field.getAttribute('role') === 'searchbox') return;
@@ -83,7 +84,7 @@ function findFieldByName(name) {
   } catch (e) {}
   const all = document.querySelectorAll('input, textarea, [contenteditable="true"]');
   for (const el of all) {
-    const elName = el.name || el.id || el.className || 'unnamed';
+    const elName = el.name || el.id || (typeof el.className === 'string' ? el.className : '') || 'unnamed';
     if (elName === name) return el;
   }
   return null;
@@ -126,46 +127,46 @@ browser.runtime.onMessage.addListener(msg => {
   document.head.appendChild(style);
 })();
 
-(function simpleUI() {
+(function mobileFriendlyInFieldUI() {
   const iconHost = document.createElement('div');
   iconHost.id = 'lazarus-icon-host';
   iconHost.style.cssText = 'position:fixed;display:none;z-index:2147483647;pointer-events:auto;';
-  iconHost.innerHTML = '<div style="width:24px;height:24px;background:#1A1A1D;color:#D4AF37;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.4);opacity:0.8;">☥</div>';
+  iconHost.innerHTML = '<div id="lazarus-icon-btn" style="width:30px;height:30px;background:#1A1A1D;color:#D4AF37;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.5);opacity:0.9;transition:transform 0.1s;">☥</div>';
   document.body.appendChild(iconHost);
-  const iconDiv = iconHost.querySelector('div');
+  const iconBtn = iconHost.querySelector('#lazarus-icon-btn');
 
   const dropdownHost = document.createElement('div');
   dropdownHost.id = 'lazarus-dropdown-host';
   dropdownHost.style.cssText = 'position:fixed;display:none;z-index:2147483646;';
-  dropdownHost.innerHTML = '<div class="list" style="background:#1A1A1D;color:#E0E0E0;border:1px solid #D4AF37;border-radius:8px;min-width:240px;max-width:360px;max-height:220px;overflow-y:auto;font-family:sans-serif;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,0.5);"></div>';
+  dropdownHost.innerHTML = '<div class="lazarus-list" style="background:#1A1A1D;color:#E0E0E0;border:1px solid #D4AF37;border-radius:8px;min-width:240px;max-width:360px;max-height:220px;overflow-y:auto;font-family:sans-serif;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,0.5);"></div>';
   document.body.appendChild(dropdownHost);
-  const listContainer = dropdownHost.querySelector('.list');
+  const listContainer = dropdownHost.querySelector('.lazarus-list');
 
   let activeField = null;
   let dropdownVisible = false;
-  let isHoveringIcon = false;
-
-  iconHost.addEventListener('mouseenter', () => isHoveringIcon = true);
-  iconHost.addEventListener('mouseleave', () => isHoveringIcon = false);
+  let iconVisible = false;
+  let fieldJustFocused = false;
+  let iconTouched = false;
 
   function positionIcon(field) {
     const rect = field.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) return hideIcon();
-    const isTextArea = field.tagName.toLowerCase() === 'textarea' || field.isContentEditable;
-    iconHost.style.display = 'block';
-    if (isTextArea) {
-      iconHost.style.left = (rect.right - 28) + 'px';
-      iconHost.style.top = (rect.bottom - 28) + 'px';
-    } else {
-      iconHost.style.left = (rect.right - 26) + 'px';
-      iconHost.style.top = (rect.top + (rect.height / 2) - 12) + 'px';
+    if (rect.width === 0 || rect.height === 0) {
+      hideIcon();
+      return;
     }
+    const isTextArea = field.tagName.toLowerCase() === 'textarea' || field.isContentEditable;
+    const x = isTextArea ? rect.right - 32 : rect.right - 30;
+    const y = isTextArea ? rect.bottom - 32 : rect.top + (rect.height / 2) - 15;
+    iconHost.style.left = x + 'px';
+    iconHost.style.top = y + 'px';
+    iconHost.style.display = 'block';
+    iconVisible = true;
   }
 
   function hideIcon() {
-    if (!dropdownVisible && !isHoveringIcon) {
-      iconHost.style.display = 'none';
-    }
+    if (dropdownVisible || iconTouched) return;
+    iconHost.style.display = 'none';
+    iconVisible = false;
   }
 
   function hideDropdown() {
@@ -197,7 +198,7 @@ browser.runtime.onMessage.addListener(msg => {
       const latestVersion = entry.versions[entry.versions.length - 1];
       listContainer.innerHTML = '';
       const item = document.createElement('div');
-      item.style.cssText = 'display:flex;align-items:center;padding:6px 8px;cursor:pointer;border-bottom:1px solid #333;';
+      item.style.cssText = 'display:flex;align-items:center;padding:8px 10px;cursor:pointer;border-bottom:1px solid #333;';
       const textDiv = document.createElement('div');
       textDiv.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:8px;';
       textDiv.textContent = latestVersion.text.slice(0, 60) + (latestVersion.text.length > 60 ? '…' : '');
@@ -217,6 +218,7 @@ browser.runtime.onMessage.addListener(msg => {
         browser.runtime.sendMessage({ action: "restoreField", entryId: entry.id });
         hideDropdown();
         hideIcon();
+        iconTouched = false;
       });
       listContainer.appendChild(item);
       const rect = field.getBoundingClientRect();
@@ -239,23 +241,38 @@ browser.runtime.onMessage.addListener(msg => {
     return `${days}d ago`;
   }
 
+  function onFieldActivate(field) {
+    if (!field.dataset.lazarusTracked || isSensitive(field)) return;
+    activeField = field;
+    fieldJustFocused = true;
+    positionIcon(field);
+    setTimeout(() => { fieldJustFocused = false; }, 300);
+  }
+
   document.addEventListener('focusin', e => {
     const target = e.target;
     if (target.matches && target.matches('input, textarea, [contenteditable="true"]')) {
-      if (!target.dataset.lazarusTracked || isSensitive(target)) return;
-      activeField = target;
-      positionIcon(target);
+      onFieldActivate(target);
     }
   }, true);
 
+  document.addEventListener('touchstart', e => {
+    const target = e.target;
+    if (target.matches && target.matches('input, textarea, [contenteditable="true"]')) {
+      onFieldActivate(target);
+    }
+  }, { passive: true });
+
   document.addEventListener('focusout', () => {
     setTimeout(() => {
-      if (!isHoveringIcon && !dropdownVisible) hideIcon();
-    }, 150);
+      if (!iconTouched && !dropdownVisible && !fieldJustFocused) {
+        hideIcon();
+      }
+    }, 200);
   }, true);
 
   window.addEventListener('scroll', () => {
-    if (activeField && iconHost.style.display === 'block') {
+    if (activeField && iconVisible) {
       positionIcon(activeField);
       if (dropdownVisible) hideDropdown();
     }
@@ -265,20 +282,36 @@ browser.runtime.onMessage.addListener(msg => {
     if (e.key === 'Escape' && dropdownVisible) {
       hideDropdown();
       hideIcon();
+      iconTouched = false;
     }
   });
 
-  iconDiv.addEventListener('mousedown', (e) => {
+  iconBtn.addEventListener('touchstart', (e) => {
     e.preventDefault();
     e.stopPropagation();
+    iconTouched = true;
+    iconBtn.style.transform = 'scale(0.9)';
     if (activeField) showDropdown(activeField);
-    alert('Icon tapped'); // temporary debug
+  }, { passive: false });
+
+  iconBtn.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    iconBtn.style.transform = 'scale(1)';
+  });
+
+  iconBtn.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    iconTouched = true;
+    if (activeField) showDropdown(activeField);
   });
 
   document.addEventListener('click', (e) => {
-    if (!dropdownHost.contains(e.target) && e.target !== iconHost) {
+    if (!iconHost.contains(e.target) && !dropdownHost.contains(e.target)) {
       hideDropdown();
       hideIcon();
+      iconTouched = false;
     }
   }, true);
 })();
