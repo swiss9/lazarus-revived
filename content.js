@@ -10,8 +10,37 @@ function isSensitive(field) {
   return sensitiveNames.some(s => name.includes(s));
 }
 
+function getUniqueSelector(el) {
+  if (el.id) return '#' + CSS.escape(el.id);
+  const path = [];
+  let current = el;
+  while (current && current.nodeType === 1) {
+    let segment = current.tagName.toLowerCase();
+    if (current.parentNode) {
+      const siblings = Array.from(current.parentNode.children).filter(e => e.tagName === current.tagName);
+      if (siblings.length > 1) {
+        const index = siblings.indexOf(current) + 1;
+        segment += `:nth-child(${index})`;
+      }
+    }
+    path.unshift(segment);
+    current = current.parentNode;
+  }
+  return path.join(' > ');
+}
+
+function extractLabel(selector) {
+  if (selector.startsWith('#')) return selector;
+  const last = selector.split('>').pop().trim();
+  if (last.includes('[name="') || last.includes('[id="')) return last;
+  return last;
+}
+
 function getFieldIdentifier(field) {
-  return field.name || field.id || (typeof field.className === 'string' ? field.className : '') || 'unnamed';
+  if (!field.dataset.lazarusSelector) {
+    field.dataset.lazarusSelector = getUniqueSelector(field);
+  }
+  return field.dataset.lazarusSelector;
 }
 
 const saveTimers = new Map();
@@ -49,6 +78,7 @@ function attach(root) {
   fields.forEach(field => {
     if (field.dataset.lazarusTracked || isSensitive(field)) return;
     field.dataset.lazarusTracked = 'true';
+    getFieldIdentifier(field);
     const key = Math.random().toString(36).substr(2, 9);
     field.dataset.lazarusKey = key;
     field.addEventListener('input', () => debouncedSave(field));
@@ -64,6 +94,7 @@ const observer = new MutationObserver(mutations => {
       if (node.matches && node.matches('input, textarea, [contenteditable="true"]')) {
         if (!node.dataset.lazarusTracked && !isSensitive(node)) {
           node.dataset.lazarusTracked = 'true';
+          getFieldIdentifier(node);
           const key = Math.random().toString(36).substr(2, 9);
           node.dataset.lazarusKey = key;
           node.addEventListener('input', () => debouncedSave(node));
@@ -75,25 +106,16 @@ const observer = new MutationObserver(mutations => {
 });
 observer.observe(document.body, { childList: true, subtree: true });
 
-function findFieldByName(name) {
-  if (!name || name === 'unnamed') return null;
-  const byName = document.querySelector(`[name="${name}"], #${name}`);
-  if (byName) return byName;
-  if (name.indexOf(' ') === -1) {
-    const byClass = document.querySelector(`.${name}`);
-    if (byClass) return byClass;
+function findFieldBySelector(selector) {
+  try {
+    return document.querySelector(selector);
+  } catch (e) {
+    return null;
   }
-  const all = document.querySelectorAll('input, textarea, [contenteditable="true"]');
-  for (const el of all) {
-    const elId = el.name || el.id || (typeof el.className === 'string' ? el.className : '') || 'unnamed';
-    if (elId === name) return el;
-  }
-  return null;
 }
 
-function restoreTextDirect(fieldName, text) {
-  alert('Restoring ' + fieldName + ' with text: ' + text.substring(0, 30));
-  const field = findFieldByName(fieldName);
+function restoreTextDirect(selector, text) {
+  const field = findFieldBySelector(selector);
   if (field) {
     if (field.isContentEditable) field.innerText = text;
     else field.value = text;
@@ -101,8 +123,6 @@ function restoreTextDirect(fieldName, text) {
     field.dispatchEvent(new Event('change', { bubbles: true }));
     field.classList.add('lazarus-glow');
     setTimeout(() => field.classList.remove('lazarus-glow'), 600);
-  } else {
-    alert('Field not found: ' + fieldName);
   }
 }
 
@@ -182,14 +202,13 @@ browser.runtime.onMessage.addListener(msg => {
   }
 
   async function showDropdown(field) {
-    alert('showDropdown called for ' + getFieldIdentifier(field));
     dropdownVisible = true;
     try {
-      const identifier = getFieldIdentifier(field);
+      const selector = getFieldIdentifier(field);
       const { entries } = await browser.runtime.sendMessage({
         action: "getSavedData",
         currentTabUrl: window.location.href,
-        fieldName: identifier
+        fieldName: selector
       });
       if (!entries || entries.length === 0) {
         hideDropdown();
@@ -222,9 +241,10 @@ browser.runtime.onMessage.addListener(msg => {
         iconTouched = false;
       });
       listContainer.appendChild(item);
+      const rect = field.getBoundingClientRect();
       dropdownHost.style.display = 'block';
-      dropdownHost.style.left = '10px';
-      dropdownHost.style.top = '200px';
+      dropdownHost.style.left = rect.left + 'px';
+      dropdownHost.style.top = (rect.bottom + 4) + 'px';
     } catch (err) {
       hideDropdown();
     }
@@ -293,8 +313,6 @@ browser.runtime.onMessage.addListener(msg => {
     iconBtn.style.transform = 'scale(0.9)';
     if (activeField && activeField.isConnected) {
       showDropdown(activeField);
-    } else {
-      alert('No active field');
     }
   });
 
