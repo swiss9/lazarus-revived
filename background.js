@@ -5,6 +5,8 @@ const MAX_ENTRIES = 500;
 const MAX_AGE_DAYS = 30;
 const MAX_VERSIONS = 10;
 
+console.log('[Lazarus] Service worker started');
+
 async function getBlacklist() {
   const { lazarus_blacklist } = await browser.storage.local.get("lazarus_blacklist");
   return lazarus_blacklist || [];
@@ -15,7 +17,9 @@ async function isBlacklisted(url) {
     const hostname = new URL(url).hostname;
     const list = await getBlacklist();
     return list.includes(hostname);
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 async function cleanExpired(entries) {
@@ -24,7 +28,11 @@ async function cleanExpired(entries) {
 }
 
 async function saveEntry(newEntry) {
-  if (await isBlacklisted(newEntry.pageUrl)) return;
+  console.log('[Lazarus] saveEntry called with:', newEntry);
+  if (await isBlacklisted(newEntry.pageUrl)) {
+    console.log('[Lazarus] Site blacklisted, not saving');
+    return;
+  }
 
   let { [STORAGE_KEY]: raw } = await browser.storage.local.get(STORAGE_KEY);
   let entries = raw || [];
@@ -40,7 +48,7 @@ async function saveEntry(newEntry) {
       }
     }
   } else {
-    newEntry.id = crypto.randomUUID ? crypto.randomUUID() : uuidFallback();
+    newEntry.id = crypto.randomUUID ? crypto.randomUUID() : 'fallback-uuid-' + Date.now();
     newEntry.versions = [{ text: newEntry.text, timestamp: Date.now() }];
     entries.push(newEntry);
   }
@@ -49,20 +57,11 @@ async function saveEntry(newEntry) {
   entries = entries.slice(0, MAX_ENTRIES);
   entries = await cleanExpired(entries);
   await browser.storage.local.set({ [STORAGE_KEY]: entries });
-}
-
-function uuidFallback() {
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  let idx = 0;
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-    const r = bytes[idx++];
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
+  console.log('[Lazarus] Entry saved. Total entries:', entries.length);
 }
 
 browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  console.log('[Lazarus] Message received:', msg.action);
   if (msg.action === "saveText") {
     saveEntry({
       pageUrl: msg.data.pageUrl,
@@ -78,6 +77,7 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       let list = entries || [];
       if (msg.currentTabUrl) list = list.filter(e => e.pageUrl === msg.currentTabUrl);
       if (msg.fieldName) list = list.filter(e => e.fieldName === msg.fieldName);
+      console.log('[Lazarus] Returning entries:', list.length);
       sendResponse({ entries: list });
     })();
     return true;
@@ -161,7 +161,7 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === "importData") {
     (async () => {
       const imported = msg.entries;
-      imported.forEach(e => { e.id = crypto.randomUUID ? crypto.randomUUID() : uuidFallback(); });
+      imported.forEach(e => { e.id = crypto.randomUUID ? crypto.randomUUID() : 'imp-' + Date.now(); });
       const { [STORAGE_KEY]: current } = await browser.storage.local.get(STORAGE_KEY);
       let existing = current || [];
       const merged = existing.concat(imported.filter(imp => !existing.some(e => e.pageUrl === imp.pageUrl && e.fieldName === imp.fieldName)));
@@ -175,55 +175,5 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     await browser.storage.local.remove("lazarus_blacklist");
     sendResponse({ success: true });
     return true;
-  }
-});
-
-browser.contextMenus.removeAll();
-browser.runtime.onInstalled.addListener(() => {
-  browser.contextMenus.create({
-    id: "lazarus-resurrect",
-    title: "☥ Resurrect Last Text",
-    contexts: ["editable"]
-  });
-  browser.contextMenus.create({
-    id: "lazarus-blacklist-toggle",
-    title: "☥ Toggle recording for this site",
-    contexts: ["page"]
-  });
-});
-
-browser.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId === "lazarus-resurrect" && tab) {
-    const { [STORAGE_KEY]: entries } = await browser.storage.local.get(STORAGE_KEY);
-    if (!entries || entries.length === 0) return;
-    const match = entries.find(e => e.pageUrl === tab.url) || entries[0];
-    if (match) {
-      const version = match.versions[match.versions.length - 1];
-      browser.tabs.sendMessage(tab.id, {
-        action: "restoreText",
-        data: { fieldName: match.fieldName, text: version.text }
-      });
-    }
-  }
-  if (info.menuItemId === "lazarus-blacklist-toggle" && tab) {
-    const hostname = new URL(tab.url).hostname;
-    let { lazarus_blacklist } = await browser.storage.local.get("lazarus_blacklist");
-    let list = lazarus_blacklist || [];
-    if (list.includes(hostname)) {
-      list = list.filter(h => h !== hostname);
-    } else {
-      list.push(hostname);
-    }
-    await browser.storage.local.set({ lazarus_blacklist: list });
-    browser.runtime.sendMessage({ action: "blacklist-changed" });
-  }
-});
-
-browser.commands.onCommand.addListener(async (command) => {
-  if (command === "open-command-palette") {
-    const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
-    if (activeTab) {
-      browser.tabs.sendMessage(activeTab.id, { action: "toggleCommandPalette" });
-    }
   }
 });
