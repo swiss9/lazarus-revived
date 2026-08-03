@@ -10,37 +10,11 @@ function isSensitive(field) {
   return sensitiveNames.some(s => name.includes(s));
 }
 
-function getUniqueSelector(el) {
-  if (el.id) return '#' + CSS.escape(el.id);
-  const path = [];
-  let current = el;
-  while (current && current.nodeType === 1) {
-    let segment = current.tagName.toLowerCase();
-    if (current.parentNode) {
-      const siblings = Array.from(current.parentNode.children).filter(e => e.tagName === current.tagName);
-      if (siblings.length > 1) {
-        const index = siblings.indexOf(current) + 1;
-        segment += `:nth-child(${index})`;
-      }
-    }
-    path.unshift(segment);
-    current = current.parentNode;
-  }
-  return path.join(' > ');
-}
-
-function extractLabel(selector) {
-  if (selector.startsWith('#')) return selector;
-  const last = selector.split('>').pop().trim();
-  if (last.includes('[name="') || last.includes('[id="')) return last;
-  return last;
-}
-
 function getFieldIdentifier(field) {
-  if (!field.dataset.lazarusSelector) {
-    field.dataset.lazarusSelector = getUniqueSelector(field);
-  }
-  return field.dataset.lazarusSelector;
+  if (field.name) return field.name;
+  if (field.id) return field.id;
+  const cls = typeof field.className === 'string' ? field.className.trim() : '';
+  return cls || 'unnamed';
 }
 
 const saveTimers = new Map();
@@ -78,7 +52,6 @@ function attach(root) {
   fields.forEach(field => {
     if (field.dataset.lazarusTracked || isSensitive(field)) return;
     field.dataset.lazarusTracked = 'true';
-    getFieldIdentifier(field);
     const key = Math.random().toString(36).substr(2, 9);
     field.dataset.lazarusKey = key;
     field.addEventListener('input', () => debouncedSave(field));
@@ -94,7 +67,6 @@ const observer = new MutationObserver(mutations => {
       if (node.matches && node.matches('input, textarea, [contenteditable="true"]')) {
         if (!node.dataset.lazarusTracked && !isSensitive(node)) {
           node.dataset.lazarusTracked = 'true';
-          getFieldIdentifier(node);
           const key = Math.random().toString(36).substr(2, 9);
           node.dataset.lazarusKey = key;
           node.addEventListener('input', () => debouncedSave(node));
@@ -106,16 +78,25 @@ const observer = new MutationObserver(mutations => {
 });
 observer.observe(document.body, { childList: true, subtree: true });
 
-function findFieldBySelector(selector) {
-  try {
-    return document.querySelector(selector);
-  } catch (e) {
-    return null;
+function findFieldByName(name) {
+  if (!name || name === 'unnamed') return null;
+  const byName = document.querySelector(`[name="${name}"], #${name}`);
+  if (byName) return byName;
+  if (name.indexOf(' ') === -1) {
+    const byClass = document.querySelector(`.${name}`);
+    if (byClass) return byClass;
   }
+  const all = document.querySelectorAll('input, textarea, [contenteditable="true"]');
+  for (const el of all) {
+    const elId = el.name || el.id || (typeof el.className === 'string' ? el.className : '') || 'unnamed';
+    if (elId === name) return el;
+  }
+  return null;
 }
 
-function restoreTextDirect(selector, text) {
-  const field = findFieldBySelector(selector);
+function restoreTextDirect(fieldName, text) {
+  alert('Restoring ' + fieldName + ' with text: ' + text.substring(0, 30));
+  const field = findFieldByName(fieldName);
   if (field) {
     if (field.isContentEditable) field.innerText = text;
     else field.value = text;
@@ -123,6 +104,8 @@ function restoreTextDirect(selector, text) {
     field.dispatchEvent(new Event('change', { bubbles: true }));
     field.classList.add('lazarus-glow');
     setTimeout(() => field.classList.remove('lazarus-glow'), 600);
+  } else {
+    alert('Field not found: ' + fieldName);
   }
 }
 
@@ -204,11 +187,11 @@ browser.runtime.onMessage.addListener(msg => {
   async function showDropdown(field) {
     dropdownVisible = true;
     try {
-      const selector = getFieldIdentifier(field);
+      const identifier = getFieldIdentifier(field);
       const { entries } = await browser.runtime.sendMessage({
         action: "getSavedData",
         currentTabUrl: window.location.href,
-        fieldName: selector
+        fieldName: identifier
       });
       if (!entries || entries.length === 0) {
         hideDropdown();
@@ -313,6 +296,8 @@ browser.runtime.onMessage.addListener(msg => {
     iconBtn.style.transform = 'scale(0.9)';
     if (activeField && activeField.isConnected) {
       showDropdown(activeField);
+    } else {
+      alert('No active field');
     }
   });
 
