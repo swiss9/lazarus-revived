@@ -1,5 +1,56 @@
 const browser = globalThis.browser || globalThis.chrome;
 
+(function() {
+  if (!window.CSS || !window.CSS.escape) {
+    window.CSS = window.CSS || {};
+    window.CSS.escape = function(value) {
+      if (arguments.length === 0) throw new TypeError('Failed to execute "escape" on "CSS": 1 argument required, but only 0 present.');
+      var string = String(value);
+      var length = string.length;
+      var index = -1;
+      var codeUnit;
+      var result = '';
+      while (++index < length) {
+        codeUnit = string.charCodeAt(index);
+        if (codeUnit === 0x0000) {
+          result += '\uFFFD';
+          continue;
+        }
+        if (
+          (codeUnit >= 0x0001 && codeUnit <= 0x001F) ||
+          (codeUnit === 0x007F) ||
+          (codeUnit >= 0x0080 && codeUnit <= 0x009F) ||
+          (codeUnit === 0x000D) ||
+          (codeUnit === 0x000C)
+        ) {
+          result += '\\' + codeUnit.toString(16) + ' ';
+          continue;
+        }
+        if (codeUnit === 0x005C) {
+          result += '\\\\';
+          continue;
+        }
+        if (
+          (codeUnit >= 0x0030 && codeUnit <= 0x0039) ||
+          (codeUnit >= 0x0041 && codeUnit <= 0x005A) ||
+          (codeUnit >= 0x0061 && codeUnit <= 0x007A) ||
+          (codeUnit === 0x002D) ||
+          (codeUnit === 0x005F)
+        ) {
+          result += string.charAt(index);
+          continue;
+        }
+        if (index === 0 && codeUnit >= 0x0030 && codeUnit <= 0x0039) {
+          result += '\\3' + string.charAt(index) + ' ';
+          continue;
+        }
+        result += '\\' + codeUnit.toString(16) + ' ';
+      }
+      return result;
+    };
+  }
+})();
+
 function isSensitive(field) {
   const type = (field.type || '').toLowerCase();
   if (type === 'password' || type === 'hidden') return true;
@@ -33,7 +84,7 @@ function saveField(field) {
       text,
       timestamp: Date.now()
     }
-  }).catch(() => {});
+  }).catch(err => console.error('Lazarus save error:', err));
 }
 
 function debouncedSave(field) {
@@ -80,13 +131,14 @@ observer.observe(document.body, { childList: true, subtree: true });
 
 function findFieldByName(name) {
   if (!name || name === 'unnamed') return null;
+  const escapedName = CSS.escape(name);
   try {
-    const bySelector = document.querySelector(`[name="${name}"], #${name}`);
-    if (bySelector) return bySelector;
+    const byNameOrId = document.querySelector(`[name="${escapedName}"], #${escapedName}`);
+    if (byNameOrId) return byNameOrId;
   } catch (e) {}
   if (name.indexOf(' ') === -1) {
     try {
-      const byClass = document.querySelector(`.${name}`);
+      const byClass = document.querySelector('.' + CSS.escape(name));
       if (byClass) return byClass;
     } catch (e) {}
   }
@@ -99,7 +151,6 @@ function findFieldByName(name) {
 }
 
 function restoreTextDirect(fieldName, text) {
-  alert('Restoring ' + fieldName + ' with text: ' + text.substring(0, 30));
   const field = findFieldByName(fieldName);
   if (field) {
     if (field.isContentEditable) field.innerText = text;
@@ -109,7 +160,7 @@ function restoreTextDirect(fieldName, text) {
     field.classList.add('lazarus-glow');
     setTimeout(() => field.classList.remove('lazarus-glow'), 600);
   } else {
-    alert('Field not found: ' + fieldName);
+    console.warn('Lazarus: field not found for', fieldName);
   }
 }
 
@@ -174,11 +225,13 @@ browser.runtime.onMessage.addListener(msg => {
     if (dropdownVisible || iconTouched) return;
     iconHost.style.display = 'none';
     iconVisible = false;
+    iconBtn.style.transform = 'scale(1)';
   }
 
   function hideDropdown() {
     dropdownHost.style.display = 'none';
     dropdownVisible = false;
+    iconBtn.style.transform = 'scale(1)';
   }
 
   async function deleteEntry(entryId) {
@@ -197,41 +250,53 @@ browser.runtime.onMessage.addListener(msg => {
         currentTabUrl: window.location.href,
         fieldName: identifier
       });
-      if (!entries || entries.length === 0) {
-        hideDropdown();
-        return;
-      }
-      const entry = entries[0];
-      const latestVersion = entry.versions[entry.versions.length - 1];
+
       listContainer.innerHTML = '';
-      const item = document.createElement('div');
-      item.style.cssText = 'display:flex;align-items:center;padding:8px 10px;cursor:pointer;border-bottom:1px solid #333;';
-      const textDiv = document.createElement('div');
-      textDiv.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:8px;';
-      textDiv.textContent = latestVersion.text.slice(0, 60) + (latestVersion.text.length > 60 ? '…' : '');
-      const timeDiv = document.createElement('div');
-      timeDiv.style.cssText = 'font-size:11px;color:#9E9E9E;margin-right:8px;white-space:nowrap;';
-      timeDiv.textContent = timeAgo(latestVersion.timestamp);
-      const delBtn = document.createElement('button');
-      delBtn.textContent = '🗑️';
-      delBtn.style.cssText = 'cursor:pointer;opacity:0.6;background:none;border:none;color:#E0E0E0;font-size:14px;padding:0;margin-left:4px;';
-      delBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        deleteEntry(entry.id);
-      });
-      item.append(textDiv, timeDiv, delBtn);
-      item.addEventListener('click', (e) => {
-        if (e.target === delBtn) return;
-        restoreTextDirect(entry.fieldName, latestVersion.text);
-        hideDropdown();
-        hideIcon();
-        iconTouched = false;
-      });
-      listContainer.appendChild(item);
+
+      if (!entries || entries.length === 0) {
+        const emptyMsg = document.createElement('div');
+        emptyMsg.style.cssText = 'padding:10px 12px;color:#9E9E9E;font-size:12px;text-align:center;';
+        emptyMsg.textContent = 'No saved text for this field';
+        listContainer.appendChild(emptyMsg);
+      } else {
+        const entry = entries[0];
+        const latestVersion = entry.versions[entry.versions.length - 1];
+        const item = document.createElement('div');
+        item.style.cssText = 'display:flex;align-items:center;padding:8px 10px;cursor:pointer;border-bottom:1px solid #333;';
+        const textDiv = document.createElement('div');
+        textDiv.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:8px;';
+        textDiv.textContent = latestVersion.text.slice(0, 60) + (latestVersion.text.length > 60 ? '…' : '');
+        const timeDiv = document.createElement('div');
+        timeDiv.style.cssText = 'font-size:11px;color:#9E9E9E;margin-right:8px;white-space:nowrap;';
+        timeDiv.textContent = timeAgo(latestVersion.timestamp);
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '🗑️';
+        delBtn.style.cssText = 'cursor:pointer;opacity:0.6;background:none;border:none;color:#E0E0E0;font-size:14px;padding:0;margin-left:4px;';
+        delBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          deleteEntry(entry.id);
+        });
+        item.append(textDiv, timeDiv, delBtn);
+        item.addEventListener('click', (e) => {
+          if (e.target === delBtn) return;
+          restoreTextDirect(entry.fieldName, latestVersion.text);
+          hideDropdown();
+          hideIcon();
+          iconTouched = false;
+        });
+        listContainer.appendChild(item);
+      }
+
       const rect = field.getBoundingClientRect();
-      dropdownHost.style.display = 'block';
-      dropdownHost.style.left = rect.left + 'px';
+      const dropdownWidth = 360;
+      let left = rect.left;
+      if (left + dropdownWidth > window.innerWidth) {
+        left = window.innerWidth - dropdownWidth - 5;
+      }
+      if (left < 5) left = 5;
+      dropdownHost.style.left = left + 'px';
       dropdownHost.style.top = (rect.bottom + 4) + 'px';
+      dropdownHost.style.display = 'block';
     } catch (err) {
       hideDropdown();
     }
@@ -300,16 +365,7 @@ browser.runtime.onMessage.addListener(msg => {
     iconBtn.style.transform = 'scale(0.9)';
     if (activeField && activeField.isConnected) {
       showDropdown(activeField);
-    } else {
-      alert('No active field');
     }
-  });
-
-  iconBtn.addEventListener('mousedown', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    iconTouched = true;
-    if (activeField) showDropdown(activeField);
   });
 
   document.addEventListener('click', (e) => {
