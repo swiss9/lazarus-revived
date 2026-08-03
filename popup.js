@@ -2,6 +2,7 @@ const browser = globalThis.browser || globalThis.chrome;
 
 let showAll = false;
 let currentTabUrl = '';
+let currentTabId = null;
 let lazarus_lock_active = false;
 let lazarus_unlocked = false;
 let lazarus_salt = null;
@@ -146,7 +147,12 @@ async function refreshEntries() {
       </div>
     `;
     card.querySelector('.restore-btn').addEventListener('click', () => {
-      browser.runtime.sendMessage({ action: "restoreField", entryId: entry.id });
+      if (currentTabId) {
+        browser.tabs.sendMessage(currentTabId, {
+          action: "restoreText",
+          data: { fieldName: entry.fieldName, text: latestVersion.text }
+        }).catch(() => {});
+      }
     });
     card.querySelector('.delete-btn').addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -183,7 +189,12 @@ async function showVersionHistory(entry) {
     row.className = 'version-row';
     row.innerHTML = `<span class="time-tag">${timeAgo(version.timestamp)}</span><span class="version-snippet">${escapeHtml(version.text.slice(0, 60))}</span><button class="btn-primary small">Restore</button>`;
     row.querySelector('button').addEventListener('click', () => {
-      browser.runtime.sendMessage({ action: "restoreVersion", entryId: entry.id, timestamp: version.timestamp });
+      if (currentTabId) {
+        browser.tabs.sendMessage(currentTabId, {
+          action: "restoreText",
+          data: { fieldName: entry.fieldName, text: version.text }
+        }).catch(() => {});
+      }
       modal.remove();
     });
     list.appendChild(row);
@@ -194,7 +205,21 @@ async function showVersionHistory(entry) {
 
 async function resurrectFullForm() {
   if (lazarus_lock_active && !lazarus_unlocked) return;
-  await browser.runtime.sendMessage({ action: "restoreAllFields", currentTabUrl: currentTabUrl });
+  const resp = await browser.runtime.sendMessage({
+    action: "getSavedData",
+    currentTabUrl: currentTabUrl
+  });
+  const entries = resp.entries || [];
+  const payload = entries.map(e => ({
+    fieldName: e.fieldName,
+    text: e.versions[e.versions.length - 1].text
+  }));
+  if (currentTabId) {
+    browser.tabs.sendMessage(currentTabId, {
+      action: "restoreAllTexts",
+      data: payload
+    }).catch(() => {});
+  }
 }
 
 async function toggleBlacklist() {
@@ -363,6 +388,10 @@ async function init() {
     }
   });
 
+  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+  currentTabId = tab ? tab.id : null;
+  currentTabUrl = tab ? tab.url : '';
+
   await loadBlacklist();
   await loadLockState();
 
@@ -373,11 +402,6 @@ async function init() {
     document.getElementById('lock-screen').style.display = 'none';
     document.getElementById('main-ui').style.display = 'flex';
   }
-
-  try {
-    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-    currentTabUrl = tab ? tab.url : '';
-  } catch (e) { currentTabUrl = ''; }
 
   updateStatusBadge();
   updateBlacklistButton();
