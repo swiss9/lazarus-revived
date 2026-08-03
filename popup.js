@@ -90,6 +90,13 @@ function escapeHtml(str) {
   });
 }
 
+function extractLabel(fieldName) {
+  if (fieldName.startsWith('#')) return fieldName;
+  const last = fieldName.split('>').pop().trim();
+  if (last.includes('[') || last.includes('#')) return last;
+  return last;
+}
+
 async function getEntriesFromStorage() {
   const resp = await browser.runtime.sendMessage({
     action: "getSavedData",
@@ -141,15 +148,16 @@ async function refreshEntries() {
     const latestVersion = entry.versions[entry.versions.length - 1];
     let hostname = 'Unknown Site';
     try { hostname = new URL(entry.pageUrl).hostname.replace('www.', '') || entry.pageUrl; } catch (e) { hostname = entry.pageUrl; }
+    const label = extractLabel(entry.fieldName);
     card.innerHTML = `
       <div class="entry-meta">
-        <span class="field-tag">${escapeHtml(entry.fieldName)}</span>
+        <span class="field-tag">${escapeHtml(label)}</span>
         <span class="time-tag">${timeAgo(latestVersion.timestamp)} · ${escapeHtml(hostname)}</span>
       </div>
       <div class="snippet">${escapeHtml(latestVersion.text)}</div>
       <div class="card-actions">
-        <button class="btn-icon history-btn" title="View version history" aria-label="View version history for ${escapeHtml(entry.fieldName)}">📜</button>
-        <button class="btn-icon delete-btn" title="Delete draft" aria-label="Delete draft ${escapeHtml(entry.fieldName)}">🗑️</button>
+        <button class="btn-icon history-btn" title="View version history" aria-label="View version history for ${escapeHtml(label)}">📜</button>
+        <button class="btn-icon delete-btn" title="Delete draft" aria-label="Delete draft ${escapeHtml(label)}">🗑️</button>
         <button class="btn-primary restore-btn">Resurrect</button>
       </div>
     `;
@@ -182,11 +190,11 @@ async function showVersionHistory(entry) {
   modal.className = 'version-modal';
   modal.setAttribute('role', 'dialog');
   modal.setAttribute('aria-modal', 'true');
-  modal.setAttribute('aria-label', `Version history for ${entry.fieldName}`);
+  modal.setAttribute('aria-label', `Version history for ${extractLabel(entry.fieldName)}`);
   modal.innerHTML = `
     <div class="version-modal-content">
       <div class="version-header">
-        <span class="field-tag">${escapeHtml(entry.fieldName)}</span>
+        <span class="field-tag">${escapeHtml(extractLabel(entry.fieldName))}</span>
         <button class="btn-icon close-modal" aria-label="Close version history">✖</button>
       </div>
       <div class="version-list"></div>
