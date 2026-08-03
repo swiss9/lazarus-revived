@@ -151,6 +151,7 @@ function findFieldByName(name) {
 }
 
 function restoreTextDirect(fieldName, text) {
+  alert('Restoring ' + fieldName + ' with text: ' + text.substring(0, 30));
   const field = findFieldByName(fieldName);
   if (field) {
     if (field.isContentEditable) field.innerText = text;
@@ -160,7 +161,7 @@ function restoreTextDirect(fieldName, text) {
     field.classList.add('lazarus-glow');
     setTimeout(() => field.classList.remove('lazarus-glow'), 600);
   } else {
-    console.warn('Lazarus: field not found for', fieldName);
+    alert('Field not found: ' + fieldName);
   }
 }
 
