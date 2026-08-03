@@ -51,7 +51,25 @@ const browser = globalThis.browser || globalThis.chrome;
   }
 })();
 
+let currentHostname = window.location.hostname;
+let isBlacklisted = false;
+
+async function refreshBlacklist() {
+  const { lazarus_blacklist } = await browser.storage.local.get("lazarus_blacklist");
+  const list = lazarus_blacklist || [];
+  isBlacklisted = list.includes(currentHostname);
+}
+
+refreshBlacklist();
+
+browser.runtime.onMessage.addListener(msg => {
+  if (msg.action === 'blacklist-changed') {
+    refreshBlacklist();
+  }
+});
+
 function isSensitive(field) {
+  if (isBlacklisted) return true; // treat all fields as sensitive if site is silenced
   const type = (field.type || '').toLowerCase();
   if (type === 'password' || type === 'hidden') return true;
   const attrs = (field.getAttribute('autocomplete') || '').toLowerCase();
@@ -71,6 +89,7 @@ function getFieldIdentifier(field) {
 const saveTimers = new Map();
 
 function saveField(field) {
+  if (isBlacklisted) return;
   if (isSensitive(field)) return;
   if (field.type === 'search' || field.getAttribute('role') === 'searchbox') return;
   if (!field.isConnected) return;
@@ -97,6 +116,7 @@ function debouncedSave(field) {
 }
 
 function attach(root) {
+  if (isBlacklisted) return;
   const fields = root.querySelectorAll(
     'input:not([type="password"]):not([type="hidden"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]), textarea, [contenteditable="true"]'
   );
@@ -112,6 +132,7 @@ function attach(root) {
 attach(document);
 
 const observer = new MutationObserver(mutations => {
+  if (isBlacklisted) return;
   mutations.forEach(mutation => {
     mutation.addedNodes.forEach(node => {
       if (node.nodeType !== 1) return;
@@ -151,7 +172,6 @@ function findFieldByName(name) {
 }
 
 function restoreTextDirect(fieldName, text) {
-  alert('Restoring ' + fieldName + ' with text: ' + text.substring(0, 30));
   const field = findFieldByName(fieldName);
   if (field) {
     if (field.isContentEditable) field.innerText = text;
@@ -160,8 +180,6 @@ function restoreTextDirect(fieldName, text) {
     field.dispatchEvent(new Event('change', { bubbles: true }));
     field.classList.add('lazarus-glow');
     setTimeout(() => field.classList.remove('lazarus-glow'), 600);
-  } else {
-    alert('Field not found: ' + fieldName);
   }
 }
 
@@ -187,6 +205,8 @@ browser.runtime.onMessage.addListener(msg => {
 })();
 
 (function mobileFriendlyInFieldUI() {
+  if (isBlacklisted) return; // don't create the UI at all on silenced sites
+
   const iconHost = document.createElement('div');
   iconHost.id = 'lazarus-icon-host';
   iconHost.style.cssText = 'position:fixed;display:none;z-index:2147483647;pointer-events:auto;';
@@ -208,6 +228,7 @@ browser.runtime.onMessage.addListener(msg => {
   let iconTouched = false;
 
   function positionIcon(field) {
+    if (isBlacklisted) return;
     const rect = field.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) {
       hideIcon();
@@ -243,6 +264,7 @@ browser.runtime.onMessage.addListener(msg => {
   }
 
   async function showDropdown(field) {
+    if (isBlacklisted) return;
     dropdownVisible = true;
     try {
       const identifier = getFieldIdentifier(field);
@@ -315,6 +337,7 @@ browser.runtime.onMessage.addListener(msg => {
   }
 
   function onFieldActivate(field) {
+    if (isBlacklisted) return;
     if (!field.dataset.lazarusTracked || isSensitive(field)) return;
     activeField = field;
     fieldJustFocused = true;
@@ -323,6 +346,7 @@ browser.runtime.onMessage.addListener(msg => {
   }
 
   document.addEventListener('focusin', e => {
+    if (isBlacklisted) return;
     const target = e.target;
     if (target.matches && target.matches('input, textarea, [contenteditable="true"]')) {
       onFieldActivate(target);
@@ -330,6 +354,7 @@ browser.runtime.onMessage.addListener(msg => {
   }, true);
 
   document.addEventListener('touchstart', e => {
+    if (isBlacklisted) return;
     const target = e.target;
     if (target.matches && target.matches('input, textarea, [contenteditable="true"]')) {
       onFieldActivate(target);
@@ -345,7 +370,7 @@ browser.runtime.onMessage.addListener(msg => {
   }, true);
 
   window.addEventListener('scroll', () => {
-    if (activeField && iconVisible) {
+    if (activeField && iconVisible && !isBlacklisted) {
       positionIcon(activeField);
       if (dropdownVisible) hideDropdown();
     }
@@ -364,7 +389,7 @@ browser.runtime.onMessage.addListener(msg => {
     e.stopPropagation();
     iconTouched = true;
     iconBtn.style.transform = 'scale(0.9)';
-    if (activeField && activeField.isConnected) {
+    if (activeField && activeField.isConnected && !isBlacklisted) {
       showDropdown(activeField);
     }
   });
