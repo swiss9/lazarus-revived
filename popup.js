@@ -121,6 +121,10 @@ async function sendRestoreToActiveTab(fieldName, text) {
   }).catch(() => {});
 }
 
+async function togglePin(entryId) {
+  await browser.runtime.sendMessage({ action: "togglePin", entryId });
+}
+
 async function refreshEntries() {
   const container = document.getElementById('entries');
   container.innerHTML = '';
@@ -140,6 +144,7 @@ async function refreshEntries() {
     `;
     return;
   }
+
   const filtered = entries.filter(e => {
     if (!searchValue) return true;
     const latestText = e.versions[e.versions.length - 1].text.toLowerCase();
@@ -147,43 +152,71 @@ async function refreshEntries() {
     const url = e.pageUrl.toLowerCase();
     return field.includes(searchValue) || latestText.includes(searchValue) || url.includes(searchValue);
   });
+
   if (filtered.length === 0) {
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">No matching drafts</div></div>`;
     return;
   }
+
+  filtered.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || b.versions[b.versions.length - 1].timestamp - a.versions[a.versions.length - 1].timestamp);
+
+  const grouped = {};
   filtered.forEach(entry => {
-    const card = document.createElement('div');
-    card.className = 'entry-card';
-    const latestVersion = entry.versions[entry.versions.length - 1];
     let hostname = 'Unknown Site';
     try { hostname = new URL(entry.pageUrl).hostname.replace('www.', '') || entry.pageUrl; } catch (e) { hostname = entry.pageUrl; }
-    const label = extractLabel(entry.fieldName);
-    card.innerHTML = `
-      <div class="entry-meta">
-        <span class="field-tag">${escapeHtml(label)}</span>
-        <span class="time-tag">${timeAgo(latestVersion.timestamp)} · ${escapeHtml(hostname)}</span>
-      </div>
-      <div class="snippet">${escapeHtml(latestVersion.text)}</div>
-      <div class="card-actions">
-        <button class="btn-icon history-btn" title="View version history" aria-label="View version history for ${escapeHtml(label)}">📜</button>
-        <button class="btn-icon delete-btn" title="Delete draft" aria-label="Delete draft ${escapeHtml(label)}">🗑️</button>
-        <button class="btn-primary restore-btn">Resurrect</button>
-      </div>
-    `;
-    card.querySelector('.restore-btn').addEventListener('click', () => {
-      sendRestoreToActiveTab(entry.fieldName, latestVersion.text);
-    });
-    card.querySelector('.delete-btn').addEventListener('click', async (e) => {
-      e.stopPropagation();
-      await browser.runtime.sendMessage({ action: "deleteEntry", entryId: entry.id });
-      refreshEntries();
-    });
-    card.querySelector('.history-btn').addEventListener('click', async (e) => {
-      e.stopPropagation();
-      showVersionHistory(entry);
-    });
-    container.appendChild(card);
+    if (!grouped[hostname]) grouped[hostname] = [];
+    grouped[hostname].push(entry);
   });
+
+  for (const [hostname, entries] of Object.entries(grouped)) {
+    const header = document.createElement('div');
+    header.style.cssText = 'font-size:12px;font-weight:600;color:#D4AF37;margin:8px 0 4px 0;padding-bottom:2px;border-bottom:1px solid #333;';
+    header.textContent = hostname;
+    container.appendChild(header);
+
+    entries.forEach(entry => {
+      const card = document.createElement('div');
+      card.className = 'entry-card';
+      const latestVersion = entry.versions[entry.versions.length - 1];
+      const label = extractLabel(entry.fieldName);
+      card.innerHTML = `
+        <div class="entry-meta">
+          <span class="field-tag">${escapeHtml(label)}</span>
+          <span class="time-tag">${timeAgo(latestVersion.timestamp)} · ${escapeHtml(hostname)}</span>
+        </div>
+        <div class="snippet">${escapeHtml(latestVersion.text)}</div>
+        <div class="card-actions">
+          <button class="btn-icon pin-btn" title="${entry.pinned ? 'Unpin' : 'Pin'}" aria-label="Pin ${escapeHtml(label)}">${entry.pinned ? '⭐' : '☆'}</button>
+          <button class="btn-icon history-btn" title="View version history" aria-label="View version history for ${escapeHtml(label)}">📜</button>
+          <button class="btn-icon delete-btn" title="Delete draft" aria-label="Delete draft ${escapeHtml(label)}">🗑️</button>
+          <button class="btn-primary restore-btn">Resurrect</button>
+        </div>
+      `;
+
+      card.querySelector('.restore-btn').addEventListener('click', () => {
+        sendRestoreToActiveTab(entry.fieldName, latestVersion.text);
+      });
+
+      card.querySelector('.delete-btn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await browser.runtime.sendMessage({ action: "deleteEntry", entryId: entry.id });
+        refreshEntries();
+      });
+
+      card.querySelector('.history-btn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        showVersionHistory(entry);
+      });
+
+      card.querySelector('.pin-btn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await togglePin(entry.id);
+        refreshEntries();
+      });
+
+      container.appendChild(card);
+    });
+  }
 }
 
 async function showVersionHistory(entry) {
