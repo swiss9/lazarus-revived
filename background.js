@@ -149,7 +149,10 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     (async () => {
       const { [STORAGE_KEY]: entries } = await browser.storage.local.get(STORAGE_KEY);
       const match = (entries || []).find(e => e.id === msg.entryId);
-      if (!match) return;
+      if (!match) {
+        sendResponse({ success: false });
+        return;
+      }
       const version = match.versions[match.versions.length - 1];
       const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
       if (activeTab) {
@@ -158,8 +161,9 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           data: { fieldName: match.fieldName, text: version.text }
         });
       }
+      sendResponse({ success: true });
     })();
-    return false;
+    return true;
   }
 
   if (msg.action === "restoreAllFields") {
@@ -187,9 +191,15 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     (async () => {
       const { [STORAGE_KEY]: entries } = await browser.storage.local.get(STORAGE_KEY);
       const match = (entries || []).find(e => e.id === msg.entryId);
-      if (!match) return;
+      if (!match) {
+        sendResponse({ success: false });
+        return;
+      }
       const version = match.versions.find(v => v.timestamp === msg.timestamp);
-      if (!version) return;
+      if (!version) {
+        sendResponse({ success: false });
+        return;
+      }
       const [activeTab] = await browser.tabs.query({ active: true, currentWindow: true });
       if (activeTab) {
         await browser.tabs.sendMessage(activeTab.id, {
@@ -197,8 +207,9 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           data: { fieldName: match.fieldName, text: version.text }
         });
       }
+      sendResponse({ success: true });
     })();
-    return false;
+    return true;
   }
 
   if (msg.action === "getExportData") {
