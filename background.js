@@ -22,7 +22,7 @@ async function isBlacklisted(url) {
 
 async function cleanExpired(entries) {
   const cutoff = Date.now() - MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
-  return entries.filter(e => e.versions.length && e.versions[e.versions.length - 1].timestamp > cutoff);
+  return entries.filter(e => e.pinned || (e.versions.length && e.versions[e.versions.length - 1].timestamp > cutoff));
 }
 
 async function saveEntry(newEntry) {
@@ -44,6 +44,7 @@ async function saveEntry(newEntry) {
   } else {
     newEntry.id = crypto.randomUUID ? crypto.randomUUID() : uuidFallback();
     newEntry.versions = [{ text: newEntry.text, timestamp: Date.now() }];
+    newEntry.pinned = false;
     entries.push(newEntry);
   }
 
@@ -91,6 +92,20 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       let entries = raw || [];
       entries = entries.filter(e => e.id !== msg.entryId);
       await browser.storage.local.set({ [STORAGE_KEY]: entries });
+      sendResponse({ success: true });
+    })();
+    return true;
+  }
+
+  if (msg.action === "togglePin") {
+    (async () => {
+      const { [STORAGE_KEY]: raw } = await browser.storage.local.get(STORAGE_KEY);
+      let entries = raw || [];
+      const entry = entries.find(e => e.id === msg.entryId);
+      if (entry) {
+        entry.pinned = !entry.pinned;
+        await browser.storage.local.set({ [STORAGE_KEY]: entries });
+      }
       sendResponse({ success: true });
     })();
     return true;
