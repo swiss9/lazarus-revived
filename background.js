@@ -4,29 +4,51 @@ const STORAGE_KEY = "lazarus_entries";
 const MAX_ENTRIES = 500;
 const MAX_AGE_DAYS = 30;
 const MAX_VERSIONS = 10;
+const MAX_TEXT_LENGTH = 10000;
+const MAX_FIELD_NAME_LENGTH = 200;
 
-async function getBlacklist() {
+let cachedBlacklist = [];
+
+async function loadBlacklist() {
   const { lazarus_blacklist } = await browser.storage.local.get("lazarus_blacklist");
-  return lazarus_blacklist || [];
+  cachedBlacklist = lazarus_blacklist || [];
 }
 
-async function isBlacklisted(url) {
+loadBlacklist();
+
+browser.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.lazarus_blacklist) {
+    cachedBlacklist = changes.lazarus_blacklist.newValue || [];
+  }
+});
+
+function isBlacklisted(url) {
   try {
     const hostname = new URL(url).hostname;
-    const list = await getBlacklist();
-    return list.includes(hostname);
+    return cachedBlacklist.includes(hostname);
   } catch {
     return false;
   }
 }
 
-async function cleanExpired(entries) {
+function cleanExpired(entries) {
   const cutoff = Date.now() - MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
-  return entries.filter(e => e.pinned || (e.versions.length && e.versions[e.versions.length - 1].timestamp > cutoff));
+  return entries.map(entry => {
+    if (entry.pinned) return entry;
+    const validVersions = entry.versions.filter(v => v.timestamp > cutoff);
+    if (validVersions.length === 0) return null;
+    entry.versions = validVersions;
+    return entry;
+  }).filter(e => e !== null);
 }
 
 async function saveEntry(newEntry) {
-  if (await isBlacklisted(newEntry.pageUrl)) return;
+  if (typeof newEntry.pageUrl !== 'string' || typeof newEntry.fieldName !== 'string' || typeof newEntry.text !== 'string') return;
+  newEntry.text = newEntry.text.slice(0, MAX_TEXT_LENGTH);
+  newEntry.fieldName = newEntry.fieldName.slice(0, MAX_FIELD_NAME_LENGTH);
+  if (!newEntry.pageUrl || !newEntry.fieldName || !newEntry.text) return;
+
+  if (isBlacklisted(newEntry.pageUrl)) return;
 
   let { [STORAGE_KEY]: raw } = await browser.storage.local.get(STORAGE_KEY);
   let entries = raw || [];
@@ -57,12 +79,8 @@ async function saveEntry(newEntry) {
 function uuidFallback() {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
-  let idx = 0;
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-    const r = bytes[idx++];
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
+  const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-4${hex.slice(13,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
 }
 
 browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -106,6 +124,22 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         entry.pinned = !entry.pinned;
         await browser.storage.local.set({ [STORAGE_KEY]: entries });
       }
+      sendResponse({ success: true });
+    })();
+    return true;
+  }
+
+  if (msg.action === "promoteVersion") {
+    (async () => {
+      const { [STORAGE_KEY]: entries } = await browser.storage.local.get(STORAGE_KEY);
+      const entry = (entries || []).find(e => e.id === msg.entryId);
+      if (!entry) return sendResponse({ success: false });
+      const idx = entry.versions.findIndex(v => v.timestamp === msg.timestamp);
+      if (idx === -1) return sendResponse({ success: false });
+      const [version] = entry.versions.splice(idx, 1);
+      version.timestamp = Date.now();
+      entry.versions.push(version);
+      await browser.storage.local.set({ [STORAGE_KEY]: entries });
       sendResponse({ success: true });
     })();
     return true;
@@ -167,20 +201,6 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return false;
   }
 
-  if (msg.action === "promoteVersion") {
-    (async () => {
-      const { [STORAGE_KEY]: entries } = await browser.storage.local.get(STORAGE_KEY);
-      const entry = (entries || []).find(e => e.id === msg.entryId);
-      if (!entry) return sendResponse({ success: false });
-      const version = entry.versions.find(v => v.timestamp === msg.timestamp);
-      if (!version) return sendResponse({ success: false });
-      entry.versions.push({ text: version.text, timestamp: Date.now() });
-      await browser.storage.local.set({ [STORAGE_KEY]: entries });
-      sendResponse({ success: true });
-    })();
-    return true;
-  }
-
   if (msg.action === "getExportData") {
     (async () => {
       const { [STORAGE_KEY]: entries } = await browser.storage.local.get(STORAGE_KEY);
@@ -204,8 +224,8 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg.action === "clearBlacklist") {
     (async () => {
-        await browser.storage.local.remove("lazarus_blacklist");
-        sendResponse({ success: true });
+      await browser.storage.local.remove("lazarus_blacklist");
+      sendResponse({ success: true });
     })();
     return true;
   }
