@@ -98,11 +98,15 @@ function extractLabel(fieldName) {
 }
 
 async function getEntriesFromStorage() {
-  const resp = await browser.runtime.sendMessage({
-    action: "getSavedData",
-    currentTabUrl: showAll ? null : currentTabUrl
-  });
-  return resp.entries;
+  try {
+    const resp = await browser.runtime.sendMessage({
+      action: "getSavedData",
+      currentTabUrl: showAll ? null : currentTabUrl
+    });
+    return resp.entries;
+  } catch (e) {
+    return [];
+  }
 }
 
 async function getActiveTabId() {
@@ -265,7 +269,10 @@ async function showVersionHistory(entry) {
 }
 
 async function resurrectFullForm() {
-  if (lazarus_lock_active && !lazarus_unlocked) return;
+  if (lazarus_lock_active && !lazarus_unlocked) {
+    alert('Vault is locked. Unlock to use this feature.');
+    return;
+  }
   const resp = await browser.runtime.sendMessage({
     action: "getSavedData",
     currentTabUrl: currentTabUrl
@@ -300,6 +307,7 @@ async function toggleBlacklist() {
 
 function updateBlacklistButton() {
   const btn = document.getElementById('blacklist-btn');
+  if (!currentTabUrl) return;
   if (isSiteBlacklisted()) {
     btn.textContent = '🔇 Unsilence Site';
   } else {
@@ -310,6 +318,7 @@ function updateBlacklistButton() {
 function updateStatusBadge() {
   const dot = document.getElementById('status-dot');
   const text = document.getElementById('status-text');
+  if (!currentTabUrl) return;
   if (isSiteBlacklisted()) {
     dot.classList.add('paused');
     text.textContent = 'Vault Paused';
@@ -320,6 +329,10 @@ function updateStatusBadge() {
 }
 
 async function exportVault() {
+  if (lazarus_lock_active && !lazarus_unlocked) {
+    alert('Vault is locked. Unlock to export.');
+    return;
+  }
   const { entries } = await browser.runtime.sendMessage({ action: "getExportData" });
   const json = JSON.stringify(entries, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
@@ -332,6 +345,10 @@ async function exportVault() {
 }
 
 async function importVault() {
+  if (lazarus_lock_active && !lazarus_unlocked) {
+    alert('Vault is locked. Unlock to import.');
+    return;
+  }
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = '.json';
@@ -465,8 +482,10 @@ async function init() {
     document.getElementById('main-ui').style.display = 'flex';
   }
 
-  updateStatusBadge();
-  updateBlacklistButton();
+  if (currentTabUrl) {
+    updateStatusBadge();
+    updateBlacklistButton();
+  }
 
   document.getElementById('tab-site').addEventListener('click', () => {
     showAll = false;
