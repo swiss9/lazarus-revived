@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Lazarus: Form Recovery",
-  "version": "4.3.2",
+  "version": "5.0.0",
   "description": "Recover lost form data. Automatically saves everything you type.",
   "permissions": ["storage", "activeTab", "scripting", "contextMenus"],
   "host_permissions": ["<all_urls>"],
@@ -12,7 +12,7 @@
     "default_popup": "popup.html",
     "default_title": "Lazarus",
     "default_icon": {
-      "48": "icons/icon48.png"
+      "48": "icons/icon48.png",
       "96": "icons/icon96.png"
     }
   },
