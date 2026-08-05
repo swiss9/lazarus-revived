@@ -20,7 +20,7 @@ async function init() {
   document.getElementById('save').addEventListener('click', async () => {
     const newSettings = {
       savePasswords: document.getElementById('savePasswords').checked,
-      retentionHours: parseInt(document.getElementById('retentionHours').value, 10) || 720,
+      retentionHours: parseInt(document.getElementById('retentionHours').value, 10) || 0,
       restoreRequiresPassword: document.getElementById('restoreRequiresPassword').checked,
       searchIndexing: document.getElementById('searchIndexing').checked
     };
