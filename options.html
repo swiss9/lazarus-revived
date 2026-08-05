@@ -29,8 +29,8 @@
     <input type="checkbox" id="savePasswords">
   </div>
   <div class="setting">
-    <label for="retentionHours">Retention (hours)</label>
-    <input type="number" id="retentionHours" min="1" max="8760">
+    <label for="retentionHours">Retention (hours, 0 = never)</label>
+    <input type="number" id="retentionHours" min="0" max="8760">
   </div>
   <div class="setting">
     <label for="restoreRequiresPassword">Require PIN for restore</label>
@@ -44,4 +44,4 @@
   <span id="status" class="saved">Saved!</span>
   <script src="options.js"></script>
 </body>
-  </html>
+</html>
