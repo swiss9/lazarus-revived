@@ -39,14 +39,10 @@
       border-bottom: 1px solid var(--border);
     }
     .brand { display: flex; align-items: center; gap: 8px; }
-    .brand-icon {
+    .brand-icon-img {
       width: 26px; height: 26px;
-      background: var(--accent-glow);
-      border: 1px solid var(--accent);
-      color: var(--accent);
       border-radius: 6px;
-      display: flex; align-items: center; justify-content: center;
-      font-weight: bold; font-size: 14px;
+      object-fit: cover;
     }
     .brand-title { font-size: 14px; font-weight: 600; letter-spacing: -0.2px; }
     .status-badge {
@@ -176,7 +172,7 @@
   <div id="main-ui">
     <div class="header">
       <div class="brand">
-        <div class="brand-icon">☥</div>
+        <img src="icons/icon96.png" alt="Lazarus logo" class="brand-icon-img">
         <span class="brand-title">Lazarus</span>
       </div>
       <div class="status-badge" id="status-badge">
@@ -231,4 +227,4 @@
 
   <script src="popup.js"></script>
 </body>
-  </html>
+      </html>
