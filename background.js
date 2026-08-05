@@ -2,23 +2,33 @@ const browser = globalThis.browser || globalThis.chrome;
 
 const STORAGE_KEY = "lazarus_entries";
 const MAX_ENTRIES = 500;
-const MAX_AGE_DAYS = 30;
 const MAX_VERSIONS = 10;
 const MAX_TEXT_LENGTH = 10000;
 const MAX_FIELD_NAME_LENGTH = 200;
 
 let cachedBlacklist = [];
+let cachedSettings = {
+  savePasswords: false,
+  retentionHours: 720,
+  restoreRequiresPassword: false,
+  searchIndexing: true
+};
 
-async function loadBlacklist() {
-  const { lazarus_blacklist } = await browser.storage.local.get("lazarus_blacklist");
-  cachedBlacklist = lazarus_blacklist || [];
+async function loadSettings() {
+  const { lazarus_settings } = await browser.storage.local.get("lazarus_settings");
+  cachedSettings = { ...cachedSettings, ...(lazarus_settings || {}) };
 }
 
-loadBlacklist();
+loadSettings();
 
 browser.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && changes.lazarus_blacklist) {
-    cachedBlacklist = changes.lazarus_blacklist.newValue || [];
+  if (area === 'local') {
+    if (changes.lazarus_blacklist) {
+      cachedBlacklist = changes.lazarus_blacklist.newValue || [];
+    }
+    if (changes.lazarus_settings) {
+      cachedSettings = { ...cachedSettings, ...(changes.lazarus_settings.newValue || {}) };
+    }
   }
 });
 
@@ -32,7 +42,7 @@ function isBlacklisted(url) {
 }
 
 function cleanExpired(entries) {
-  const cutoff = Date.now() - MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+  const cutoff = Date.now() - cachedSettings.retentionHours * 60 * 60 * 1000;
   return entries.map(entry => {
     if (entry.pinned) return entry;
     const validVersions = entry.versions.filter(v => v.timestamp > cutoff);
