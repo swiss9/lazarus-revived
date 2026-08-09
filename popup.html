@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    :root {
+      --bg-main: #09090b;
+      --bg-card: #18181b;
+      --bg-card-hover: #27272a;
+      --border: #27272a;
+      --border-accent: #3f3f46;
+      --accent: #d97706;
+      --accent-glow: rgba(217, 119, 6, 0.15);
+      --accent-light: #f59e0b;
+      --text-primary: #f4f4f5;
+      --text-secondary: #a1a1aa;
+      --text-snippet: #d4d4d8;
+      --text-muted: #71717a;
+      --danger: #ef4444;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      width: 100%;
+      min-width: 360px;
+      max-width: 450px;
+      background: var(--bg-main);
+      color: var(--text-primary);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      min-height: 500px;
+      margin: 0 auto;
+    }
+
+    .entries-container::-webkit-scrollbar {
+      width: 5px;
+    }
+    .entries-container::-webkit-scrollbar-track {
+      background: var(--bg-card);
+    }
+    .entries-container::-webkit-scrollbar-thumb {
+      background: var(--accent);
+      border-radius: 10px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 12px;
+      border-bottom: 2px solid transparent;
+      border-image: linear-gradient(90deg, var(--accent), var(--accent-glow)) 1;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-icon-img {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      object-fit: cover;
+      border: 1px solid var(--accent);
+      box-shadow: 0 0 8px var(--accent-glow);
+    }
+
+    .brand-title {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      color: var(--text-primary);
+    }
+
+    .status-badge {
+      font-size: 11px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 3px 10px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #22c55e;
+    }
+
+    .status-dot.paused {
+      background: #f59e0b;
+      animation: none;
+    }
+
+    .status-dot.active {
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.15); }
+    }
+
+    .tab-bar {
+      display: flex;
+      background: var(--bg-card);
+      padding: 3px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+
+    .tab-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 8px 0;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .tab-btn.active {
+      background: var(--bg-main);
+      color: var(--text-primary);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+      border: 1px solid var(--border);
+    }
+
+    .tab-btn:hover:not(.active) {
+      color: var(--text-primary);
+    }
+
+    .search-input {
+      width: 100%;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: var(--text-primary);
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .search-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-glow);
+    }
+
+    .search-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .entries-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex: 1;
+      overflow-y: auto;
+      max-height: 300px;
+      padding-right: 2px;
+    }
+
+    .entry-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    }
+
+    .entry-card:hover {
+      border-color: var(--border-accent);
+      background: var(--bg-card-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    }
+
+    .entry-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+    }
+
+    .field-tag {
+      font-weight: 600;
+      color: var(--accent);
+      background: var(--accent-glow);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 11px;
+    }
+
+    .time-tag {
+      color: var(--text-muted);
+    }
+
+    .snippet {
+      font-size: 12px;
+      color: var(--text-snippet);
+      line-height: 1.5;
+      word-break: break-word;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .card-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 4px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .btn-icon {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-icon:hover {
+      color: var(--danger);
+      background: rgba(239, 68, 68, 0.1);
+      transform: scale(1.05);
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #000;
+      font-weight: 600;
+      font-size: 11px;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary:hover {
+      opacity: 0.9;
+      transform: scale(1.02);
+    }
+
+    .btn-primary:active {
+      transform: scale(0.96);
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 16px;
+      text-align: center;
+      gap: 12px;
+    }
+
+    .empty-icon {
+      font-size: 48px;
+      opacity: 0.3;
+    }
+
+    .empty-title {
+      font-size: 14px;
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+
+    .empty-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      max-width: 240px;
+      line-height: 1.5;
+    }
+
+    .footer {
+      margin-top: auto;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .support-btn {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+
+    .support-btn:hover {
+      color: var(--accent);
+    }
+
+    .lock-btn {
+      background: transparent;
+      border: 1px solid var(--border-accent);
+      color: var(--text-secondary);
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .lock-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    #donate-modal,
+    #settings-modal {
+      display: none;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      font-size: 11px;
+      gap: 12px;
+      flex-direction: column;
+    }
+
+    #donate-modal {
+      text-align: center;
+    }
+
+    #donate-modal img {
+      width: 100px;
+      height: 100px;
+      margin: 0 auto;
+      border-radius: 8px;
+    }
+
+    .settings-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+
+    .settings-header p {
+      color: var(--text-secondary);
+      font-weight: 600;
+      font-size: 12px;
+    }
+
+    .close-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 14px;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .close-btn:hover {
+      color: var(--text-primary);
+      background: rgba(255,255,255,0.05);
+    }
+
+    .settings-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .settings-label {
+      color: var(--text-secondary);
+      font-size: 12px;
+    }
+
+    .settings-input {
+      background: var(--bg-main);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-primary);
+      padding: 4px 8px;
+      font-size: 12px;
+      width: 80px;
+      text-align: right;
+    }
+
+    .action-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 4px;
+    }
+
+    .version-modal,
+    .pin-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.65);
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(2px);
+    }
+
+    .version-modal-content,
+    .pin-modal-content {
+      background: var(--bg-card);
+      border: 1px solid var(--border-accent);
+      border-radius: 14px;
+      padding: 20px;
+      width: 90%;
+      max-width: 360px;
+      max-height: 420px;
+      overflow-y: auto;
+    }
+
+    .version-header,
+    .pin-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .version-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .version-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .version-snippet {
+      flex: 1;
+      font-size: 12px;
+      color: var(--text-secondary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .small {
+      font-size: 10px;
+      padding: 3px 8px;
+      border-radius: 5px;
+    }
+
+    #lock-screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      height: 100%;
+      flex: 1;
+    }
+
+    #main-ui {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      flex: 1;
+    }
+
+    .error-text {
+      display: none;
+      color: var(--danger);
+      font-size: 11px;
+    }
+
+    .footer-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+  <div id="lock-screen">
+    <div class="empty-icon">🔒</div>
+    <div class="empty-title">Vault Locked</div>
+    <input type="password" id="pin-input" placeholder="Enter PIN" class="search-input" style="width:80%;" aria-label="PIN input">
+    <button id="unlock-btn" class="btn-primary">Unlock</button>
+    <div id="pin-error" class="error-text">Incorrect PIN</div>
+  </div>
+
+  <div id="main-ui">
+    <div class="header">
+      <div class="brand">
+        <img src="icons/icon96.png" alt="Lazarus logo" class="brand-icon-img">
+        <span class="brand-title">Lazarus</span>
+      </div>
+      <div class="status-badge" id="status-badge">
+        <span class="status-dot active" id="status-dot"></span>
+        <span id="status-text">Vault Active</span>
+      </div>
+    </div>
+
+    <input type="text" id="search-input" class="search-input" placeholder="Search vault..." aria-label="Search saved entries">
+
+    <div class="tab-bar">
+      <button class="tab-btn active" id="tab-site">Current Site</button>
+      <button class="tab-btn" id="tab-all">All Vaults</button>
+    </div>
+
+    <div class="action-row">
+      <button class="btn-primary" id="resurrect-all-btn">☥ Resurrect Full Form</button>
+      <button class="btn-primary" id="blacklist-btn">🔕 Silence Site</button>
+    </div>
+
+    <div id="entries" class="entries-container"></div>
+
+    <div class="action-row">
+      <button class="btn-primary" id="export-btn">📤 Export Vault</button>
+      <button class="btn-primary" id="import-btn">📥 Import Vault</button>
+    </div>
+
+    <div id="donate-modal">
+      <p style="color: var(--text-secondary); font-weight: 600; margin-bottom: 8px;">Support Lazarus</p>
+      <div style="margin-bottom: 10px;">
+        <p style="color: var(--accent); margin-bottom: 4px;">USDC on Solana</p>
+        <img src="donate-qr.png" alt="Solana donation QR code" style="width:100px; height:100px;">
+        <p style="font-size:10px; margin-top:4px; word-break: break-all;">
+          <a href="solana:HDnhGVB3JGBjnYy8acuhohTPUNgMHRKv3p4CsK7T1dCK" style="color:var(--text-secondary);">HDnhGVB3JGBjnYy8acuhohTPUNgMHRKv3p4CsK7T1dCK</a>
+        </p>
+      </div>
+      <div>
+        <p style="color: var(--accent); margin-bottom: 4px;">BNB Smart Chain</p>
+        <img src="donate-qr2.png" alt="BNB donation QR code" style="width:100px; height:100px;">
+        <p style="font-size:10px; margin-top:4px; word-break: break-all;">
+          <a style="color:var(--text-secondary);">0xdCE4bAEcCA99B8239A02111E8a354eF1Af1494c6</a>
+        </p>
+      </div>
+    </div>
+
+    <div id="settings-modal">
+      <div class="settings-header">
+        <p>Settings</p>
+        <button class="close-btn" id="settings-close-btn">✕</button>
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">Allow password fields</span>
+        <input type="checkbox" id="setting-savePasswords">
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">Retention (hours, 0=never)</span>
+        <input type="number" id="setting-retentionHours" class="settings-input" min="0" max="8760">
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">Require PIN for restore</span>
+        <input type="checkbox" id="setting-restoreRequiresPassword">
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">Enable search & history</span>
+        <input type="checkbox" id="setting-searchIndexing">
+      </div>
+      <button class="btn-primary" id="save-settings">Save Settings</button>
+    </div>
+
+    <div class="footer">
+      <a class="support-btn" id="toggle-donate">
+        <span>☕</span> Support Development
+      </a>
+      <div class="footer-actions">
+        <button class="btn-icon" id="settings-btn" title="Settings">⚙️</button>
+        <button class="lock-btn" id="lock-btn">🔒 Locked</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
