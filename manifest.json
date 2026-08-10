@@ -5,7 +5,7 @@
   "description": "Recover lost form data. Automatically saves everything you type.",
   "browser_specific_settings": {
     "gecko": {
-      "id": "lazarus@{7c78aa21-e56d-4c41-895c-71ed7864ebfe}",
+      "id": "{7c78aa21-e56d-4c41-895c-71ed7864ebfe}",
       "data_collection_permissions": {
         "required": ["none"]
       }
