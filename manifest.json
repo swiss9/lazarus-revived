@@ -3,10 +3,16 @@
   "name": "Lazarus: Form Recovery",
   "version": "5.0.0",
   "description": "Recover lost form data. Automatically saves everything you type.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "lazarus@yourdomain.com"
+    }
+  },
   "permissions": ["storage", "activeTab", "scripting", "contextMenus"],
   "host_permissions": ["<all_urls>"],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "scripts": ["background.js"]
   },
   "action": {
     "default_popup": "popup.html",
