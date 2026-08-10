@@ -137,6 +137,7 @@ function isSensitive(field) {
 }
 
 function getFieldIdentifier(el) {
+  let parts = [];
   if (el.id) return `#${CSS.escape(el.id)}`;
   if (el.name) {
     const escapedName = CSS.escape(el.name);
@@ -144,15 +145,22 @@ function getFieldIdentifier(el) {
     if (matches.length === 1) {
       return `[name="${escapedName}"]`;
     }
+    // If name is not unique, include tag and context
+    parts.push(`[name="${escapedName}"]`);
   }
-  let path = [];
+  // Build a CSS path with nth-of-type, but avoid too much fragility
   let node = el;
+  let path = [];
   while (node && node.nodeType === Node.ELEMENT_NODE) {
     let selector = node.nodeName.toLowerCase();
     if (node.id) {
       selector = `#${CSS.escape(node.id)}`;
       path.unshift(selector);
       break;
+    }
+    // If node has a name attribute, add it to selector
+    if (node.name && !parts.length) {
+      // already handled
     }
     let nth = 1;
     let sibling = node;
@@ -163,6 +171,10 @@ function getFieldIdentifier(el) {
     if (node.name) {
       const nameAttr = CSS.escape(node.name);
       selector += `[name="${nameAttr}"]`;
+    }
+    if (node.placeholder) {
+      const placeholder = CSS.escape(node.placeholder);
+      selector += `[placeholder="${placeholder}"]`;
     }
     path.unshift(selector);
     node = node.parentNode;
@@ -281,7 +293,22 @@ function simulateUserTyping(field, text) {
 function restoreTextDirect(identifier, text) {
   if (typeof identifier !== 'string' || typeof text !== 'string' || !identifier) return;
   function attemptRestoration(retriesLeft) {
-    const field = findFieldByIdentifier(identifier);
+    let field = findFieldByIdentifier(identifier);
+    // Fallback: if identifier contains a name attribute, try using only that
+    if (!field) {
+      const nameMatch = identifier.match(/\[name="([^"]+)"\]/);
+      if (nameMatch) {
+        const name = nameMatch[1];
+        try { field = document.querySelector(`[name="${CSS.escape(name)}"]`); } catch {}
+      }
+    }
+    // Fallback: if identifier contains an id, try that
+    if (!field) {
+      const idMatch = identifier.match(/#([^\s>]+)/);
+      if (idMatch) {
+        try { field = document.getElementById(idMatch[1]); } catch {}
+      }
+    }
     if (field) {
       simulateUserTyping(field, text);
     } else if (retriesLeft > 0) {
@@ -418,15 +445,67 @@ function initInFieldUI() {
     if (!(await isVaultUnlocked())) return;
     dropdownVisible = true;
     try {
-      const identifier = getFieldIdentifier(field);
-      const resp = await browser.runtime.sendMessage({
+      const exactIdentifier = getFieldIdentifier(field);
+      let entries = null;
+      let currentIdentifier = exactIdentifier;
+
+      // Try exact identifier first
+      let resp = await browser.runtime.sendMessage({
         action: "getSavedData",
         currentTabUrl: window.location.origin + window.location.pathname,
-        fieldName: identifier
+        fieldName: exactIdentifier
       });
-      if (!resp.entries) return;
-      let entries = resp.entries;
-      if (entries.iv) {
+      if (resp && resp.entries && resp.entries.length) {
+        entries = resp.entries;
+      } else {
+        // Fallback: try name-only if field has a name
+        if (field.name) {
+          const nameOnly = `[name="${CSS.escape(field.name)}"]`;
+          if (nameOnly !== exactIdentifier) {
+            resp = await browser.runtime.sendMessage({
+              action: "getSavedData",
+              currentTabUrl: window.location.origin + window.location.pathname,
+              fieldName: nameOnly
+            });
+            if (resp && resp.entries && resp.entries.length) {
+              entries = resp.entries;
+              currentIdentifier = nameOnly;
+            }
+          }
+        }
+        // Fallback: try id-only if field has an id
+        if (!entries && field.id) {
+          const idOnly = `#${CSS.escape(field.id)}`;
+          if (idOnly !== exactIdentifier && idOnly !== `[name="${CSS.escape(field.name)}"]`) {
+            resp = await browser.runtime.sendMessage({
+              action: "getSavedData",
+              currentTabUrl: window.location.origin + window.location.pathname,
+              fieldName: idOnly
+            });
+            if (resp && resp.entries && resp.entries.length) {
+              entries = resp.entries;
+              currentIdentifier = idOnly;
+            }
+          }
+        }
+      }
+
+      // If we still have no entries, try a generic search by field.name (without escaping)
+      if (!entries && field.name) {
+        const genericName = field.name;
+        resp = await browser.runtime.sendMessage({
+          action: "getSavedData",
+          currentTabUrl: window.location.origin + window.location.pathname,
+          fieldName: genericName
+        });
+        if (resp && resp.entries && resp.entries.length) {
+          entries = resp.entries;
+          currentIdentifier = genericName;
+        }
+      }
+
+      // Decrypt if needed
+      if (entries && entries.iv) {
         const { lazarus_encryption_key } = await browser.storage.session.get("lazarus_encryption_key");
         if (!lazarus_encryption_key) return;
         const keyBytes = new Uint8Array(lazarus_encryption_key.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
@@ -436,8 +515,18 @@ function initInFieldUI() {
         const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ciphertext);
         entries = JSON.parse(new TextDecoder().decode(decrypted));
       }
-      const relevant = entries;
-      if (!relevant.length) {
+
+      // Filter by the identifier we actually used (or any matching)
+      if (entries && Array.isArray(entries)) {
+        const relevant = entries.filter(e => e.fieldName === currentIdentifier);
+        if (relevant.length) entries = relevant;
+        else if (entries.length) entries = [entries[0]]; // fallback to first match
+        else entries = [];
+      } else {
+        entries = [];
+      }
+
+      if (!entries || !entries.length) {
         listContainer.innerHTML = '';
         const emptyMsg = document.createElement('div');
         emptyMsg.style.cssText = 'padding:10px 12px;color:#9E9E9E;font-size:12px;text-align:center;';
@@ -445,7 +534,9 @@ function initInFieldUI() {
         listContainer.appendChild(emptyMsg);
       } else {
         listContainer.innerHTML = '';
-        relevant[0].versions.slice().reverse().forEach(version => {
+        // Use the first entry (there should be only one)
+        const entry = entries[0];
+        entry.versions.slice().reverse().forEach(version => {
           const item = document.createElement('div');
           item.className = 'item';
           const textDiv = document.createElement('div');
@@ -459,12 +550,12 @@ function initInFieldUI() {
           delBtn.textContent = '✕';
           delBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            deleteEntry(relevant[0].id);
+            deleteEntry(entry.id);
           });
           item.append(textDiv, timeDiv, delBtn);
           item.addEventListener('click', (e) => {
             if (e.target === delBtn) return;
-            restoreTextDirect(relevant[0].fieldName, version.text);
+            restoreTextDirect(entry.fieldName, version.text);
             hideDropdown();
             hideIcon();
             iconTouched = false;
