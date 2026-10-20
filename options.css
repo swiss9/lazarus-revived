@@ -1,0 +1,402 @@
+/* Lazarus v6.0 — options
+ * No webfonts are bundled, so keep plain system stacks (no 404 font loads). */
+
+:root {
+  color-scheme: dark;
+  --ink: #0a0a0b;
+  --raised: #101013;
+  --hover: #15151a;
+  --line: #26262b;
+  --line-soft: #1c1c20;
+  --bone: #ede7da;
+  --bone-2: #b9b2a4;
+  --dim: #8a8578;
+  --mute: #6e6a61;
+  --blood: #c1121f;
+  --blood-2: #e1192a;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+[hidden] { display: none !important; }
+
+body {
+  background: var(--ink);
+  color: var(--bone);
+  font-family: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: 80px;
+}
+
+svg { display: block; }
+
+.rail {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 58px;
+  padding: 0 32px;
+  background: var(--ink);
+  border-bottom: 1px solid var(--line);
+}
+.rail::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: 40px;
+  height: 2px;
+  background: var(--blood);
+}
+.mark { width: 22px; height: 22px; color: var(--blood); }
+.wordmark {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+.rail .spacer { flex: 1; }
+.rail .meta {
+  font-family: "Plex Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+main { max-width: 760px; margin: 0 auto; padding: 26px 24px 90px; }
+
+section { margin-bottom: 0; }
+
+/* each group is its own panel so settings / about / donation never blur
+ * into one long column */
+.card {
+  margin-bottom: 18px;
+  padding: 0 20px 6px;
+  background: var(--ink);
+  border: 1px solid var(--line);
+}
+.card > h1 {
+  margin: 0 -20px 10px;
+  padding: 14px 20px 12px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--line);
+}
+.card .form { margin: 4px 0 14px; }
+.card .form + .form { margin-top: 0; }
+.card .stats { padding-bottom: 16px; }
+.card .donate { padding: 8px 0 14px; }
+
+h1 {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--bone-2);
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+.row:last-child { border-bottom: 0; }
+.row .label { flex: 1; min-width: 0; }
+.row .label .name { font-size: 13px; }
+.row .label .note {
+  margin-top: 5px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--dim);
+  max-width: 44ch;
+}
+.row .label .note b { color: var(--bone-2); font-weight: 400; }
+.row .control { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; }
+
+/* square checkbox */
+.toggle { position: relative; display: inline-flex; cursor: pointer; }
+.toggle input {
+  appearance: none;
+  width: 20px; height: 20px;
+  margin: 0;
+  border: 1px solid var(--line);
+  background: var(--raised);
+  cursor: pointer;
+}
+.toggle input:checked { background: var(--bone); border-color: var(--bone); }
+.toggle input:checked::after {
+  content: "";
+  position: absolute;
+  left: 7px; top: 3px;
+  width: 5px; height: 10px;
+  border-right: 2px solid var(--ink);
+  border-bottom: 2px solid var(--ink);
+  transform: rotate(45deg);
+}
+.toggle input:focus-visible { outline: 2px solid var(--blood); outline-offset: 2px; }
+
+input[type="number"], input[type="password"], input[type="text"], select {
+  background: var(--raised);
+  border: 1px solid var(--line);
+  color: var(--bone);
+  font-family: "Plex Mono", monospace;
+  font-size: 12px;
+  padding: 9px 10px;
+  outline: none;
+}
+input:focus, select:focus { border-color: var(--blood); }
+input::placeholder { color: var(--mute); }
+input[type="number"] { width: 92px; text-align: right; }
+select { text-transform: uppercase; letter-spacing: 0.1em; font-size: 10px; }
+
+.unit {
+  font-family: "Plex Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.btn {
+  height: 36px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--bone);
+  border: 1px solid var(--bone);
+  color: var(--ink);
+  cursor: pointer;
+  font-family: "Plex Mono", monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.btn:hover { background: #f7f2e6; }
+.btn.ghost { background: none; border-color: var(--line); color: var(--bone-2); }
+.btn.ghost:hover { border-color: var(--bone-2); color: var(--bone); }
+.btn.danger { background: none; border-color: var(--blood); color: var(--blood); }
+.btn.danger:hover { background: #16090b; color: var(--blood-2); border-color: var(--blood-2); }
+.btn:disabled { opacity: 0.35; cursor: default; }
+.btn svg { width: 12px; height: 12px; }
+
+:focus-visible { outline: 2px solid var(--blood); outline-offset: 2px; }
+
+.tag {
+  font-family: "Plex Mono", monospace;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 4px 7px 3px;
+  border: 1px solid var(--line);
+  color: var(--dim);
+}
+.tag.ok { border-color: #2f4a33; color: #8fbf97; }
+.tag.warn { border-color: var(--blood); color: var(--blood); }
+
+.form { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.form input { min-width: 180px; }
+
+/* PIN controls — one labelled block each, above the erase row */
+.pin-block { margin-top: 18px; }
+.pin-head {
+  margin-bottom: 6px;
+  font-family: "Plex Mono", monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--bone-2);
+}
+.pin-note {
+  max-width: 56ch;
+  margin-bottom: 10px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--dim);
+}
+.pin-head-gap {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.sites { display: flex; flex-direction: column; }
+.site {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line-soft);
+  font-family: "Plex Mono", monospace;
+  font-size: 11px;
+  color: var(--bone-2);
+}
+.site:last-child { border-bottom: 0; }
+.site .host { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.empty {
+  padding: 14px 0;
+  font-size: 11.5px;
+  color: var(--dim);
+}
+
+.status {
+  margin-top: 12px;
+  border-left: 2px solid var(--line);
+  padding: 8px 10px;
+  font-family: "Plex Mono", monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.status.ok { border-color: #2f4a33; color: #8fbf97; }
+.status.err { border-color: var(--blood); color: #f0a6ac; }
+
+/* transient notification — fixed so it is visible even when scrolled */
+.toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 30;
+  max-width: min(420px, calc(100vw - 32px));
+  padding: 9px 12px;
+  background: #141417;
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--bone-2);
+  font-family: "Plex Mono", monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  line-height: 1.4;
+  text-transform: uppercase;
+  color: var(--bone);
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+  transition: opacity 120ms linear, transform 120ms linear;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.ok { border-left-color: #2f4a33; color: #8fbf97; }
+.toast.err { border-left-color: var(--blood); color: #f0a6ac; }
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+
+/* ------------------------------------------------------------ tabs
+ * flat, square, monospace — same rules as the popup tab strip */
+.tabs {
+  position: sticky;
+  top: 58px;
+  z-index: 4;
+  display: flex;
+  margin: 0 0 18px;
+  background: var(--ink);
+  border-bottom: 1px solid var(--line);
+}
+.tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 42px;
+  margin-bottom: -1px;
+  padding: 0 12px 1px;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  cursor: pointer;
+  font-family: "Plex Mono", monospace;
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.tab:hover { color: var(--bone-2); }
+.tab.active { color: var(--bone); border-bottom-color: var(--blood); }
+
+.stats {
+  display: flex;
+  gap: 34px;
+  padding: 4px 0 18px;
+}
+.stats div {
+  font-family: "Plex Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.stats div b {
+  display: block;
+  margin-top: 7px;
+  font-family: "Archivo", sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--bone);
+}
+
+.donate { display: flex; gap: 34px; flex-wrap: wrap; }
+.donate .qr { flex: 1 1 260px; min-width: 240px; }
+.donate img {
+  width: 132px;
+  height: 132px;
+  border: 1px solid var(--line);
+  display: block;
+}
+.donate .who {
+  margin: 10px 0 6px;
+  font-family: "Plex Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--bone-2);
+}
+.donate code {
+  display: block;
+  font-family: "Plex Mono", monospace;
+  font-size: 10px;
+  color: var(--dim);
+  overflow-wrap: anywhere;
+  margin-bottom: 10px;
+}
+.donate .row-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+
+a.btn { text-decoration: none; }
+
+.danger-row { margin-top: 20px; border-top: 1px solid var(--line); }
+
+.about p { font-size: 12px; line-height: 1.6; color: var(--dim); max-width: 60ch; margin-bottom: 14px; }
+.about p b { color: var(--bone-2); font-weight: 400; }
+.about .credit {
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--mute);
+}
+.keys {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 22px;
+  font-family: "Plex Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+}
+.keys span b {
+  display: inline-block;
+  min-width: 118px;
+  color: var(--bone-2);
+  font-weight: 500;
+  letter-spacing: 0.12em;
+}

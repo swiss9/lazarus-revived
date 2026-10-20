@@ -1,0 +1,58 @@
+{
+  "manifest_version": 3,
+  "name": "Lazarus: Form Recovery",
+  "version": "6.0.0",
+  "description": "Recover lost form data. Automatically saves everything you type.",
+  "homepage_url": "https://github.com/swiss9/lazarus-revived",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "{7c78aa21-e56d-4c41-895c-71ed7864ebfe}",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    },
+    "gecko_android": {
+      "strict_min_version": "142.0"
+    }
+  },
+  "permissions": ["storage", "activeTab", "scripting", "contextMenus", "idle"],
+  "host_permissions": ["<all_urls>"],
+  "icons": {
+    "48": "icons/icon48.png",
+    "96": "icons/icon96.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Lazarus",
+    "default_icon": {
+      "48": "icons/icon48.png",
+      "96": "icons/icon96.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "commands": {
+    "open-command-palette": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+L",
+        "mac": "MacCtrl+Shift+L"
+      },
+      "description": "Open Lazarus command palette"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

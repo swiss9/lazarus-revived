@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lazarus</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="rail">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <circle cx="12" cy="6.5" r="4"/><path d="M12 10.5V22"/><path d="M5 14.5h14"/>
+      </svg>
+      <span class="wordmark">Lazarus</span>
+      <span class="ver" id="version-tag">v6.0</span>
+    </div>
+    <button class="icon-btn" id="settings-btn" title="Settings" aria-label="Open settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" aria-hidden="true">
+        <path d="M3 6h18M3 12h18M3 18h18"/>
+        <circle cx="8" cy="6" r="2.2" fill="#0a0a0b"/>
+        <circle cx="16" cy="12" r="2.2" fill="#0a0a0b"/>
+        <circle cx="10" cy="18" r="2.2" fill="#0a0a0b"/>
+      </svg>
+    </button>
+  </header>
+
+  <div class="site" id="site-row" hidden>
+    <span class="host" id="site-host"></span>
+    <button class="link" id="silence-btn" title="Stop recording this site">Silence</button>
+  </div>
+
+  <!-- main -->
+  <main class="view" id="view-main" hidden>
+    <div class="actionbar">
+      <button class="primary" id="resurrect-btn">
+        <svg class="glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+          <circle cx="12" cy="6.5" r="4"/><path d="M12 10.5V22"/><path d="M5 14.5h14"/>
+        </svg>
+        <span>Resurrect page</span>
+        <span class="count" id="resurrect-count"></span>
+        <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M4 12h15M13 6l6 6-6 6"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="filter-wrap">
+      <div class="filter">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/>
+        </svg>
+        <input type="text" id="filter" placeholder="Filter vault" aria-label="Filter saved drafts" spellcheck="false">
+        <span class="kbd">/</span>
+      </div>
+    </div>
+
+    <nav class="tabs">
+      <button class="tab active" id="tab-page" aria-selected="true">This page <b id="count-page">0</b></button>
+      <button class="tab" id="tab-all" aria-selected="false">All drafts <b id="count-all">0</b></button>
+    </nav>
+
+    <div class="list" id="list" role="list"></div>
+  </main>
+
+  <!-- vault sealed -->
+  <section class="view state form sealed" id="view-sealed" hidden>
+    <svg class="mark-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+      <circle cx="12" cy="6.5" r="4"/><path d="M12 10.5V22"/><path d="M5 14.5h14"/>
+    </svg>
+    <h2>Vault sealed</h2>
+    <p id="sealed-copy">Your drafts are encrypted with AES-256-GCM. Enter your PIN to unseal them for this session.</p>
+    <div class="form-inner">
+      <label class="form-label" for="unlock-pin">PIN</label>
+      <input class="field-input" type="password" id="unlock-pin" autocomplete="current-password" aria-label="Vault PIN">
+      <div class="error" id="unlock-error" hidden></div>
+      <button class="btn-block" id="unlock-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <rect x="4" y="10.5" width="16" height="10.5"/><path d="M8 10.5V7a4 4 0 018 0v1"/>
+        </svg>
+        Unseal vault
+      </button>
+      <div class="meta">
+        <span id="sealed-kdf">PBKDF2 · 600K</span>
+        <span id="sealed-autolock"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- set a pin -->
+  <section class="view state form" id="view-setup" hidden>
+    <svg class="mark-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+      <circle cx="12" cy="6.5" r="4"/><path d="M12 10.5V22"/><path d="M5 14.5h14"/>
+    </svg>
+    <h2>Seal the vault</h2>
+    <p>Set a PIN to encrypt every draft with AES-256-GCM. <b>There is no recovery</b> if you lose it — you can remove it again from settings.</p>
+    <div class="form-inner">
+      <label class="form-label" for="setup-pin">PIN · 6+ characters</label>
+      <input class="field-input" type="password" id="setup-pin" autocomplete="new-password" aria-label="New PIN">
+      <div class="gap"></div>
+      <label class="form-label" for="setup-confirm">Repeat PIN</label>
+      <input class="field-input" type="password" id="setup-confirm" autocomplete="new-password" aria-label="Repeat PIN">
+      <div class="error" id="setup-error" hidden></div>
+      <button class="btn-block" id="setup-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <rect x="4" y="10.5" width="16" height="10.5"/><path d="M8 10.5V7a4 4 0 018 0v3.5"/>
+        </svg>
+        Seal vault
+      </button>
+      <div class="meta">
+        <span>PBKDF2 · 600K</span>
+        <span>Local only</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- version history -->
+  <section class="view" id="view-history" hidden>
+    <div class="history-head">
+      <button class="back" id="history-back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+          <path d="M20 12H5M11 6l-6 6 6 6"/>
+        </svg>
+        Back
+      </button>
+      <span class="history-title" id="history-field"></span>
+    </div>
+    <div class="list" id="history-list"></div>
+  </section>
+
+  <footer class="foot">
+    <span class="stats" id="stats">—</span>
+    <div class="foot-actions" id="foot-actions"></div>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <input type="file" id="import-file" accept="application/json,.json" hidden>
+</div>
+<script src="popup.js"></script>
+</body>
+</html>

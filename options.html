@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lazarus — Options</title>
+<link rel="stylesheet" href="options.css">
+</head>
+<body>
+
+<header class="rail">
+  <svg class="mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+    <circle cx="12" cy="6.5" r="4"/><path d="M12 10.5V22"/><path d="M5 14.5h14"/>
+  </svg>
+  <span class="wordmark">Lazarus</span>
+  <span class="spacer"></span>
+  <span class="tag" id="vault-tag">…</span>
+  <span class="meta" id="version-meta">v6.0</span>
+</header>
+
+<main>
+  <nav class="tabs" role="tablist" aria-label="Settings">
+    <button type="button" class="tab active" id="tab-overview" role="tab" aria-selected="true" aria-controls="card-overview" data-tab="overview">Overview</button>
+    <button type="button" class="tab" id="tab-silenced" role="tab" aria-selected="false" aria-controls="card-silenced" data-tab="silenced">Silenced</button>
+    <button type="button" class="tab" id="tab-security" role="tab" aria-selected="false" aria-controls="card-security" data-tab="security">Security</button>
+    <button type="button" class="tab" id="tab-about" role="tab" aria-selected="false" aria-controls="card-about" data-tab="about">About</button>
+  </nav>
+
+  <section class="card" id="card-overview" data-tab="overview">
+    <h1>Overview</h1>
+    <div class="stats">
+      <div>Drafts<b id="stat-drafts">0</b></div>
+      <div>Size<b id="stat-size">0 KB</b></div>
+      <div>Sites<b id="stat-sites">0</b></div>
+    </div>
+    <div class="status" id="vault-status">reading…</div>
+  </section>
+
+  <section class="card" id="card-settings" data-tab="overview">
+    <h1>Settings</h1>
+    <div class="row">
+      <div class="label">
+        <div class="name">Save passwords</div>
+        <div class="note">Off by default. While off, password fields and anything that looks like a card, one-time code or recovery phrase is ignored. Turning this on stores passwords in the vault.</div>
+      </div>
+      <div class="control"><label class="toggle"><input type="checkbox" id="set-savePasswords"></label></div>
+    </div>
+    <div class="row">
+      <div class="label">
+        <div class="name">Command palette</div>
+        <div class="note">Ctrl+Shift+L (⌃⇧L on Mac) opens a searchable list of drafts saved for the current page.</div>
+      </div>
+      <div class="control"><label class="toggle"><input type="checkbox" id="set-paletteEnabled"></label></div>
+    </div>
+    <div class="row">
+      <div class="label">
+        <div class="name">Search indexing</div>
+        <div class="note">Let the filter and palette match against saved draft text, not just field names.</div>
+      </div>
+      <div class="control"><label class="toggle"><input type="checkbox" id="set-searchIndexing"></label></div>
+    </div>
+    <div class="row">
+      <div class="label">
+        <div class="name">Keep drafts for</div>
+        <div class="note">Older drafts are deleted as you browse. Pinned drafts are never expired. <b>0</b> keeps everything up to the 500-draft ceiling.</div>
+      </div>
+      <div class="control">
+        <input type="number" id="set-retentionHours" min="0" max="8760" step="1" inputmode="numeric">
+        <span class="unit">hours</span>
+      </div>
+    </div>
+    <div class="row">
+      <div class="label">
+        <div class="name">Auto-lock</div>
+        <div class="note">Seal the vault after this much inactivity. Only takes effect while a PIN is set.</div>
+      </div>
+      <div class="control">
+        <select id="set-autoLockMinutes">
+          <option value="0">Never</option>
+          <option value="5">5 minutes</option>
+          <option value="15">15 minutes</option>
+          <option value="30">30 minutes</option>
+          <option value="60">60 minutes</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="card-silenced" data-tab="silenced" hidden>
+    <h1>Silenced sites</h1>
+    <div class="sites" id="site-list"></div>
+  </section>
+
+  <section class="card" id="card-security" data-tab="security" hidden>
+    <h1>Security</h1>
+    <div class="status" id="pin-status">reading…</div>
+
+    <div class="pin-block" id="pin-setup">
+      <h2 class="pin-head">Set PIN</h2>
+      <p class="pin-note">Encrypt every draft with AES-256-GCM. There is no recovery if you lose the PIN.</p>
+      <div class="form">
+        <input type="password" id="new-pin" placeholder="New PIN · 6+ characters" autocomplete="new-password">
+        <input type="password" id="new-pin2" placeholder="Repeat PIN" autocomplete="new-password">
+        <button type="button" class="btn" id="pin-set-btn">Set PIN</button>
+      </div>
+    </div>
+
+    <div class="pin-block" id="pin-unseal" hidden>
+      <h2 class="pin-head">Unseal vault</h2>
+      <p class="pin-note">Enter the current PIN to unlock the vault for this session.</p>
+      <div class="form">
+        <input type="password" id="unseal-pin" placeholder="PIN" autocomplete="current-password">
+        <button type="button" class="btn" id="pin-unseal-btn">Unseal</button>
+      </div>
+    </div>
+
+    <div class="pin-block" id="pin-manage" hidden>
+      <h2 class="pin-head">Change PIN</h2>
+      <p class="pin-note">Replace the current PIN. Drafts stay encrypted and are re-wrapped with the new one.</p>
+      <div class="form">
+        <input type="password" id="old-pin" placeholder="Current PIN" autocomplete="current-password">
+        <input type="password" id="new-pin-c" placeholder="New PIN" autocomplete="new-password">
+        <input type="password" id="new-pin-c2" placeholder="Repeat new PIN" autocomplete="new-password">
+        <button type="button" class="btn" id="pin-change-btn">Change PIN</button>
+      </div>
+
+      <h2 class="pin-head pin-head-gap">Remove PIN</h2>
+      <p class="pin-note">Remove encryption and store the vault as plain text. Anyone using this browser profile can then read every draft.</p>
+      <div class="form">
+        <input type="password" id="remove-pin" placeholder="Current PIN" autocomplete="current-password">
+        <button type="button" class="btn ghost" id="pin-remove-btn">Remove PIN</button>
+      </div>
+    </div>
+
+    <div class="row danger-row">
+      <div class="label">
+        <div class="name">Erase everything</div>
+        <div class="note">Permanently delete every draft, the index and the PIN. This cannot be undone.</div>
+      </div>
+      <div class="control">
+        <button type="button" class="btn danger" id="erase-btn">Erase all drafts</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="card-backup" data-tab="security" hidden>
+    <h1>Backup</h1>
+    <div class="row">
+      <div class="label">
+        <div class="name">Export &amp; import</div>
+        <div class="note">Export writes every draft to a plain JSON file. <b>That file is not encrypted</b> — store it somewhere safe. Import merges drafts that do not already exist.</div>
+      </div>
+      <div class="control">
+        <button type="button" class="btn" id="export-btn">Export</button>
+        <button type="button" class="btn ghost" id="import-btn">Import</button>
+        <input type="file" id="import-file" accept="application/json,.json" hidden>
+      </div>
+    </div>
+  </section>
+
+  <section class="card about" id="card-about" data-tab="about" hidden>
+    <h1>About</h1>
+    <p>Lazarus records form fields as you type and keeps the history of every draft, so a crash, a stray navigation or a forgotten tab never costs you your words. Everything is stored locally with <b>browser.storage.local</b>; nothing is ever sent anywhere.</p>
+    <p>By default password fields, card numbers, one-time codes and wallet recovery phrases are deliberately ignored.</p>
+    <p>Lazarus is free: no ads, no tracking, no paid tier. Donations are the only thing that pays for the time it takes to keep it working as browsers change. If it has saved you from retyping something long, you can drop a little in the tip jar below — it is never required.</p>
+    <p class="credit">Thanks to the original <b>Lazarus Form Recovery</b> addon and its authors: it rescued a lot of lost text before it was abandoned, and this project only exists because of it.</p>
+    <div class="keys">
+      <span><b>Palette</b>Ctrl+Shift+L on any page</span>
+      <span><b>Filter</b>/ inside the popup</span>
+      <span><b>Restore one field</b>click the ankh beside a field</span>
+      <span><b>Restore a page</b>right-click → Resurrect this page</span>
+    </div>
+  </section>
+
+  <section class="card" id="card-donation" data-tab="about" hidden>
+    <h1>Donation</h1>
+    <div class="donate">
+      <div class="qr">
+        <img src="donate-qr.png" alt="QR code for the Solana donation address" width="132" height="132">
+        <div class="who">Solana</div>
+        <code id="addr-solana">HDnhGVB3JGBjnYy8acuhohTPUNgMHRKv3p4CsK7T1dCK</code>
+        <div class="row-actions">
+          <button type="button" class="btn ghost" data-copy="HDnhGVB3JGBjnYy8acuhohTPUNgMHRKv3p4CsK7T1dCK">Copy address</button>
+          <a class="btn ghost" href="donate-qr.png" download="lazarus-donate-solana.png">Download QR</a>
+        </div>
+      </div>
+      <div class="qr">
+        <img src="donate-qr2.png" alt="QR code for the Ethereum donation address" width="132" height="132">
+        <div class="who">Ethereum / EVM</div>
+        <code id="addr-evm">0xdCE4bAEcCA99B8239A02111E8a354eF1Af1494c6</code>
+        <div class="row-actions">
+          <button type="button" class="btn ghost" data-copy="0xdCE4bAEcCA99B8239A02111E8a354eF1Af1494c6">Copy address</button>
+          <a class="btn ghost" href="donate-qr2.png" download="lazarus-donate-ethereum.png">Download QR</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="options.js"></script>
+</body>
+</html>
