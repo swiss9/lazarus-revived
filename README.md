@@ -128,11 +128,6 @@ and the extension makes no network requests.
 - If the browser clears extension storage (for example, “Clear browsing data” with site data
   selected), drafts are deleted with it.
 
-## Store submission
-
-Listing copy, permission justifications, reviewer test steps and a pre-submission checklist are in
-[AMO_SUBMISSION.md](AMO_SUBMISSION.md).
-
 ## Credits
 
 Thanks to the original **Lazarus Form Recovery** add-on and its authors. It rescued a lot of lost
