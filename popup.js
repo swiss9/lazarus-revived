@@ -96,22 +96,71 @@ function normalizeUrl(input) {
   return u.toString();
 }
 
-async function send(type, data) {
-  try {
-    const response = await api.runtime.sendMessage({ type, ...(data || {}) });
-    if (response) return response;
-    reportPopupError('No response from the background for "' + type + '"', 'background.js', 0, 0);
-    return { ok: false, error: 'NO_RESPONSE' };
-  } catch (e) {
-    reportPopupError(
-      'Message "' + type + '" failed: ' + (e && e.message ? e.message : String(e)),
-      'popup.js',
-      0,
-      0,
-      e
-    );
-    return { ok: false, error: 'NO_BACKGROUND' };
+const READ_ONLY_MESSAGES = new Set([
+  'lz:state', 'lz:list', 'lz:entry', 'lz:field', 'lz:payload',
+  'lz:blacklist-list', 'lz:export'
+]);
+
+function messageTimeout(type) {
+  if (['lz:set-pin', 'lz:unlock', 'lz:change-pin', 'lz:remove-pin', 'lz:seal', 'lz:erase'].includes(type)) {
+    return 30000;
   }
+  if (['lz:restore-field', 'lz:restore-all', 'lz:import', 'lz:export'].includes(type)) {
+    return 15000;
+  }
+  return 6000;
+}
+
+function senderMissing(error) {
+  const text = String(error && (error.message || error));
+  return /Receiving end does not exist|Could not establish connection|message port closed/i.test(text);
+}
+
+function sendWithTimeout(message, timeoutMs) {
+  let timer = null;
+  const timeout = new Promise((resolve, reject) => {
+    timer = setTimeout(() => {
+      const error = new Error('TIMEOUT');
+      error.code = 'TIMEOUT';
+      reject(error);
+    }, timeoutMs);
+  });
+  return Promise.race([api.runtime.sendMessage(message), timeout])
+    .finally(() => clearTimeout(timer));
+}
+
+async function send(type, data) {
+  const message = { type, ...(data || {}) };
+  const readOnly = READ_ONLY_MESSAGES.has(type);
+  let lastError = null;
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let retry = false;
+    try {
+      const response = await sendWithTimeout(message, messageTimeout(type));
+      if (response) return response;
+      lastError = new Error('No response from the background for "' + type + '"');
+      retry = readOnly;
+    } catch (e) {
+      lastError = e;
+      retry = readOnly || senderMissing(e);
+    }
+    if (!retry || attempt === 1) break;
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+
+  const detail = lastError && lastError.message ? lastError.message : String(lastError);
+  reportPopupError(
+    'Message "' + type + '" failed: ' + detail,
+    'popup.js',
+    0,
+    0,
+    lastError
+  );
+
+  if (lastError && lastError.code === 'TIMEOUT') return { ok: false, error: 'TIMEOUT' };
+  if (senderMissing(lastError)) return { ok: false, error: 'NO_BACKGROUND' };
+  return { ok: false, error: 'NO_RESPONSE' };
 }
 
 async function ensureSettingsStored(settings) {

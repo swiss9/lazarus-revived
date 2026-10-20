@@ -71,7 +71,9 @@
     blacklisted: false,
     locked: false,
     lastField: null,
-    panelOpen: false
+    panelOpen: false,
+    isRestoring: false,
+    iconHoldUntil: 0
   };
 
   const saveTimers = new WeakMap();
@@ -340,9 +342,28 @@
     showIcon(el);
   }, true);
 
+  /* Clicking an input that is already focused does not fire focusin, so bring
+   * the ankh back on pointerdown as well (important after an autofill, when
+   * the field keeps focus but the page may have re-rendered it). */
+  document.addEventListener('pointerdown', event => {
+    const el = event.composedPath ? event.composedPath()[0] : event.target;
+    if (!isEditable(el)) return;
+    state.lastField = el;
+    if (!canCapture(el)) { hidePanel(); hideIcon(); return; }
+    showIcon(el);
+  }, true);
+
   document.addEventListener('focusout', () => {
     setTimeout(() => {
-      if (!state.panelOpen && !iconTouched) hideIcon();
+      if (state.panelOpen || iconTouched || state.isRestoring) return;
+      if (Date.now() < state.iconHoldUntil) return;
+      const active = document.activeElement;
+      if (isEditable(active)) {
+        state.lastField = active;
+        if (canCapture(active)) showIcon(active);
+        return;
+      }
+      hideIcon();
     }, 180);
   }, true);
 
@@ -448,7 +469,14 @@
     iconHost.style.display = 'block';
   }
 
+  function ensureHostsMounted() {
+    if (!document.body) return;
+    if (!iconHost.isConnected) document.body.appendChild(iconHost);
+    if (!panelHost.isConnected) document.body.appendChild(panelHost);
+  }
+
   function showIcon(el) {
+    ensureHostsMounted();
     activeField = el;
     iconHost.style.display = 'block';
     positionIcon(el);
@@ -462,6 +490,49 @@
   function hidePanel() {
     panelHost.style.display = 'none';
     state.panelOpen = false;
+  }
+
+  /* After a restore the field may stay focused (so no new focusin fires) or be
+   * replaced by a framework re-render. Keep the ankh attached to the field, and
+   * follow it through DOM mutations for a short while. */
+  function revealIconWhenReady(selector, original) {
+    let current = original;
+    const attach = () => {
+      const field = current && current.isConnected ? current : findField(selector);
+      if (!field || !field.isConnected) return false;
+      current = field;
+      state.lastField = field;
+      showIcon(field);
+      return true;
+    };
+
+    attach();
+    const observer = new MutationObserver(() => {
+      ensureHostsMounted();
+      if (!current || !current.isConnected) attach();
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    setTimeout(() => observer.disconnect(), 1500);
+  }
+
+  async function restoreFromPanel(field, text) {
+    if (state.isRestoring) return;
+    state.isRestoring = true;
+    state.iconHoldUntil = Date.now() + 1200;
+    const selector = fieldSelector(field);
+    hidePanel();
+
+    try {
+      if (!restoreInto(field, text)) {
+        const replacement = findField(selector);
+        if (replacement) restoreInto(replacement, text);
+      }
+      await new Promise(resolve => setTimeout(resolve, 160));
+      revealIconWhenReady(selector, field);
+    } finally {
+      state.isRestoring = false;
+      iconTouched = false;
+    }
   }
 
   function placePanel() {
@@ -478,6 +549,7 @@
   }
 
   async function openPanel(field) {
+    ensureHostsMounted();
     state.panelOpen = true;
     panelHost.style.display = 'block';
     panelField.textContent = field.name || field.id || 'field';
@@ -532,10 +604,7 @@
 
       row.append(text, time, kill);
       row.addEventListener('click', () => {
-        restoreInto(field, version.text);
-        hidePanel();
-        hideIcon();
-        iconTouched = false;
+        restoreFromPanel(field, version.text);
       });
       panelList.appendChild(row);
     });
