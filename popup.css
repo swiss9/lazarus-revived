@@ -494,20 +494,12 @@ svg { display: block; }
   height: 34px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
+  gap: 8px;
   padding: 0 12px 0 14px;
   border-top: 1px solid var(--line);
 }
-.stats {
-  font-family: "Plex Mono", monospace;
-  font-size: 8.5px;
-  letter-spacing: 0.08em;
-  color: var(--dim);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.foot-actions { display: flex; align-items: center; gap: 13px; flex: 0 0 auto; margin-left: 10px; }
+.foot-actions { display: flex; align-items: center; gap: 13px; flex-shrink: 0; }
 .foot-link {
   display: flex; align-items: center; gap: 4px;
   background: none; border: 0; padding: 2px 0; cursor: pointer;
@@ -580,7 +572,6 @@ svg { display: block; }
   .act { font-size: 10px; padding: 10px 2px; }
 
   .foot { flex-basis: 44px; height: 44px; }
-  .stats { font-size: 10px; }
   .foot-actions { gap: 14px; }
   .foot-link { font-size: 10px; padding: 10px 0; }
 

@@ -830,11 +830,9 @@ async function openPalette() {
 
 function renderFooter() {
   const actions = $('foot-actions');
-  const stats = $('stats');
   actions.textContent = '';
 
   if (state.view === 'sealed') {
-    stats.textContent = 'Nothing leaves this device';
     actions.appendChild(footLink('Forgot PIN?', () => {
       openOptions().finally(() => window.close());
     }));
@@ -842,7 +840,6 @@ function renderFooter() {
   }
 
   if (state.view === 'setup') {
-    stats.textContent = 'AES-256-GCM · local only';
     actions.appendChild(footLink('Cancel', () => {
       state.view = 'main';
       reload({ list: false });
@@ -850,17 +847,10 @@ function renderFooter() {
     return;
   }
 
-  if (state.view === 'history' && state.history) {
-    const versions = state.history.versions.length;
-    stats.textContent = versions + (versions === 1 ? ' version' : ' versions');
-  } else {
-    stats.textContent = state.count + (state.count === 1 ? ' draft' : ' drafts') + ' · ' + formatBytes(state.bytes);
-  }
-
   actions.appendChild(footLink('Export', exportVault, { title: 'Download every draft as JSON' }));
   actions.appendChild(footLink('Import', () => $('import-file').click(), { title: 'Restore from a Lazarus export' }));
 
-  if (state.url && state.settings.paletteEnabled !== false) {
+  if (state.url && state.count > 0 && state.settings.paletteEnabled !== false) {
     actions.appendChild(footLink('Palette', openPalette, { title: 'Open the command palette on this page' }));
   }
 
@@ -1049,7 +1039,7 @@ const REQUIRED_IDS = [
   'count-page', 'tab-all', 'count-all', 'list', 'view-sealed', 'sealed-copy',
   'sealed-autolock', 'unlock-pin', 'unlock-error', 'unlock-btn', 'view-setup',
   'setup-pin', 'setup-confirm', 'setup-error', 'setup-btn', 'view-history',
-  'history-back', 'history-field', 'history-list', 'stats', 'foot-actions',
+  'history-back', 'history-field', 'history-list', 'foot-actions',
   'toast', 'import-file'
 ];
 
