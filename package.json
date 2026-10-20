@@ -1,0 +1,28 @@
+{
+  "name": "lazarus-form-recovery",
+  "version": "6.0.0",
+  "description": "Lazarus Form Recovery — locally encrypted form draft recovery with the Ankh UI.",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-only",
+  "homepage": "https://github.com/swiss9/lazarus-revived",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/swiss9/lazarus-revived.git"
+  },
+  "scripts": {
+    "start": "web-ext run --config web-ext-config.mjs",
+    "start:android": "web-ext run --target firefox-android --config web-ext-config.mjs",
+    "lint": "web-ext lint --config web-ext-config.mjs",
+    "build": "web-ext build --config web-ext-config.mjs",
+    "build:chromium": "node scripts/build-chromium.mjs",
+    "build:all": "npm run build && npm run build:chromium",
+    "clean": "node -e \"const fs=require('node:fs'); for (const p of ['dist','web-ext-artifacts']) fs.rmSync(p,{recursive:true,force:true})\""
+  },
+  "devDependencies": {
+    "web-ext": "^8.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
